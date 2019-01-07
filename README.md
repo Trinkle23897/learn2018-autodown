@@ -2,10 +2,10 @@
 
 ## Dependency
 
-python, bs4
+python3, bs4
 
 ```bash
-sudo pip install bs4
+sudo pip3 install bs4
 ```
 
 
