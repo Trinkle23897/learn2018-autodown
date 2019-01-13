@@ -5,7 +5,7 @@
 python3, bs4
 
 ```bash
-sudo pip3 install bs4
+pip3 install bs4 --user
 ```
 
 
