@@ -6,6 +6,7 @@ import urllib
 import getpass
 import http.cookiejar
 from bs4 import BeautifulSoup as bs
+from multiprocessing import Pool
 
 url = 'https://learn.tsinghua.edu.cn/'
 user_agent = r'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36'
@@ -76,6 +77,17 @@ def sync_hw(path_prefix, course_id):
 			if not os.path.exists(file_path):
 				print('Download ', name)
 				open(file_path, 'wb').write(open_page(uri).read())
+				
+def run_course(course):
+	course_id = course[0]
+	name = course[1]
+	if name in ignore:
+		print('Skip ' + name)
+	else:
+		print('Sync '+ name)
+		sync_file(name, course_id)
+	sync_hw(name, course_id)
+
 
 if __name__ == '__main__':
 	ignore = open('.ignore').read().split() if os.path.exists('.ignore') else []
@@ -84,10 +96,5 @@ if __name__ == '__main__':
 	if login(username, password):
 		typepage = 1 if '.py' in sys.argv[-1] else int(sys.argv[-1])
 		courses = get_courses(typepage)
-		for course_id, name in courses:
-			if name in ignore:
-				print('Skip ' + name)
-			else:
-				print('Sync '+ name)
-				sync_file(name, course_id)
-			sync_hw(name, course_id)
+		pool = Pool(30)
+		pool.map(run_course, courses)
