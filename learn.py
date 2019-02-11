@@ -89,10 +89,6 @@ def download(uri, name=None, filename=''):
         return
     name = filename if name is None else html.unescape(name)
     filename = html.unescape(filename).replace(os.path.sep, '、')
-    try:
-        filesize = int(r.headers['Content-Length'])
-    except:
-        filesize = 0
     if not os.path.exists(filename) or filesize != os.stat(filename).st_size and filesize > 0:
         with TqdmUpTo(ncols=150, unit='B', unit_scale=True, miniters=1, desc=name) as t:
             urllib.request.urlretrieve(url+uri, filename=filename, reporthook=t.update_to, data=None)
