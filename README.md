@@ -2,16 +2,16 @@
 
 ## Dependency
 
-python3, bs4
+python3, bs4, tqdm
 
 ```bash
-pip3 install bs4 --user
+pip3 install bs4 tqdm --user
 ```
 
 ## Usage
 
 ```bash
-./learn.py [0/1]
+./learn.py [type_number]
 ```
 
 默认下载本学期课程 （=1），0则为下载所有学期课程
