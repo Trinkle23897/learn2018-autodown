@@ -65,9 +65,9 @@ class TqdmUpTo(tqdm):
         self.update(b * bsize - self.n)
 
 def download(uri, name=None, filename=''):
+    h = opener.open(urllib.request.Request(url+uri,urllib.parse.urlencode({}).encode(),headers)).headers.as_string()
+    filesize = int(h.split('Content-Length: ')[-1].split('\n')[0])
     try: # get filename and filesize
-        h = opener.open(urllib.request.Request(url+uri,urllib.parse.urlencode({}).encode(),headers)).headers.as_string()
-        filesize = int(h.split('Content-Length: ')[-1].split('\n')[0])
         if '=?utf-8?' not in h:
             filename = h.split('filename="')[-1].split('"\nContent-Length')[0]
         else:
@@ -85,8 +85,14 @@ def download(uri, name=None, filename=''):
                 if st[-1] in b' "\x85': st = st[:-1]
             filename = st.replace(b' ', b'\x85' if error else b' ').decode()
     except:
-        # print('Cannot download %s, expected in %s' % (url+uri, os.path.join(os.getcwd(), filename)))
-        return
+        try:
+            b, encoding = email.header.decode_header(h)[1]
+            b = b.decode(encoding)
+            filename = cgi.parse_header(b)[1]['filename']
+        except:
+            print('Cannot download %s, expected in %s' % (url+uri, os.path.join(os.getcwd(), filename)))
+            return
+
     name = filename if name is None else html.unescape(name)
     filename = html.unescape(filename).replace(os.path.sep, '、')
     if not os.path.exists(filename) or filesize != os.stat(filename).st_size and filesize > 0:
