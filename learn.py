@@ -6,7 +6,7 @@ __copyright__ = "Copyright (C) 2019 Trinkle23897"
 __license__ = "MIT"
 __email__ = "463003665@qq.com"
 
-import os, sys, json, html, time, email, urllib, getpass, http.cookiejar
+import os, sys, json, html, time, cgi, email, urllib, getpass, http.cookiejar
 from tqdm import tqdm
 from bs4 import BeautifulSoup as bs
 
@@ -85,10 +85,13 @@ def download(uri, name=None, filename=''):
                 if st[-1] in b' "\x85': st = st[:-1]
             filename = st.replace(b' ', b'\x85' if error else b' ').decode()
     except:
+        # fallback: 使用文件标题作为文件名
         try:
             b, encoding = email.header.decode_header(h)[1]
-            b = b.decode(encoding)
-            filename = cgi.parse_header(b)[1]['filename']
+            filename = cgi.parse_header(b.decode(encoding))[1]['filename']
+            # 此时的 filename 可能含有乱码
+            namepart, ext = os.path.split(filename)
+            filename = name + ext
         except:
             print('Cannot download %s, expected in %s' % (url+uri, os.path.join(os.getcwd(), filename)))
             return
