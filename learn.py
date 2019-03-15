@@ -6,7 +6,7 @@ __copyright__ = "Copyright (C) 2019 Trinkle23897"
 __license__ = "MIT"
 __email__ = "463003665@qq.com"
 
-import os, sys, json, html, time, email, urllib, getpass, http.cookiejar
+import os, sys, json, html, time, cgi, email, urllib, getpass, http.cookiejar
 from tqdm import tqdm
 from bs4 import BeautifulSoup as bs
 
@@ -65,9 +65,10 @@ class TqdmUpTo(tqdm):
         self.update(b * bsize - self.n)
 
 def download(uri, name=None, filename=''):
+    h = opener.open(urllib.request.Request(url+uri,urllib.parse.urlencode({}).encode(),headers)).headers.as_string()
+    filesize = int(h.split('Content-Length: ')[-1].split('\n')[0])
+    
     try: # get filename and filesize
-        h = opener.open(urllib.request.Request(url+uri,urllib.parse.urlencode({}).encode(),headers)).headers.as_string()
-        filesize = int(h.split('Content-Length: ')[-1].split('\n')[0])
         if '=?utf-8?' not in h:
             filename = h.split('filename="')[-1].split('"\nContent-Length')[0]
         else:
@@ -85,10 +86,15 @@ def download(uri, name=None, filename=''):
                 if st[-1] in b' "\x85': st = st[:-1]
             filename = st.replace(b' ', b'\x85' if error else b' ').decode()
     except:
-        # print('Cannot download %s, expected in %s' % (url+uri, os.path.join(os.getcwd(), filename)))
-        return
+        # fallback: 使用文件标题作为文件名
+        b, encoding = email.header.decode_header(h)[1]
+        b = b.decode(encoding)
+        namepart, ext = os.path.splitext(cgi.parse_header(b)[1]['filename'])
+        filename = ""
+    filename = html.unescape(filename)
     name = filename if name is None else html.unescape(name)
-    filename = html.unescape(filename).replace(os.path.sep, '、')
+    filename = filename if filename else name + ext
+    filename = filename.replace(os.path.sep, '、').replace(':', '_')
     if not os.path.exists(filename) or filesize != os.stat(filename).st_size and filesize > 0:
         with TqdmUpTo(ncols=150, unit='B', unit_scale=True, miniters=1, desc=name) as t:
             urllib.request.urlretrieve(url+uri, filename=filename, reporthook=t.update_to, data=None)
