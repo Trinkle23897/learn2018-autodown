@@ -10,7 +10,7 @@ import os, sys, json, html, time, cgi, email, urllib, getpass, http.cookiejar
 from tqdm import tqdm
 from bs4 import BeautifulSoup as bs
 
-url = 'http://learn2018.tsinghua.edu.cn'
+url = 'http://learn.tsinghua.edu.cn'
 user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'
 headers = {'User-Agent': user_agent, 'Connection': 'keep-alive'}
 cookie = http.cookiejar.MozillaCookieJar()
@@ -64,47 +64,46 @@ class TqdmUpTo(tqdm):
         if tsize is not None: self.total = tsize
         self.update(b * bsize - self.n)
 
-def download(uri, name=None, filename=''):
-    h = opener.open(urllib.request.Request(url+uri,urllib.parse.urlencode({}).encode(),headers)).headers.as_string()
-    filesize = int(h.split('Content-Length: ')[-1].split('\n')[0])
-    
-    try: # get filename and filesize
-        if '=?utf-8?' not in h:
-            filename = h.split('filename="')[-1].split('"\nContent-Length')[0]
-        else:
-            error = email.header.decode_header(h)[-1][0][0] != ord(b'C')
-            s0 = (b'\x85' if error else b'').join([i[0].replace(b' ', b'\x85\x85') if h.count('=?utf-8?b') > 1 and i[1] == 'utf-8' else i[0] for i in email.header.decode_header(h)])
-            st, c = bytearray(), 0
-            for i in range(len(s0)):
-                if s0[i] == 0xc3: c = 64
-                elif s0[i] == 0xc2: c = 0
-                else:
-                    st.extend(range(s0[i]+c, s0[i]+c+1))
-                    c = 0
-            st = st.split(b'filename="')[1].split(b'Content-Length')[0]
-            for i in range(2):
-                if st[-1] in b' "\x85': st = st[:-1]
-            filename = st.replace(b' ', b'\x85' if error else b' ').decode()
-    except:
-        # fallback: 使用文件标题作为文件名
-        b, encoding = email.header.decode_header(h)[1]
-        b = b.decode(encoding)
-        namepart, ext = os.path.splitext(cgi.parse_header(b)[1]['filename'])
-        filename = ""
-    filename = html.unescape(filename)
-    name = filename if name is None else html.unescape(name)
-    filename = filename if filename else name + ext
-    filename = filename.replace(os.path.sep, '、').replace(':', '_')
-    if not os.path.exists(filename) or filesize != os.stat(filename).st_size and filesize > 0:
+def escape(s):
+    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '')
+
+def download(uri, name=None, title=None):
+    if name is None:
+        for f in os.listdir('.'):
+            if f.startswith(title): # already download
+                return
+        try:
+            h = opener.open(urllib.request.Request(url+uri,urllib.parse.urlencode({}).encode(),headers)).headers.as_string()
+            head = email.header.decode_header(h)
+            if len(head) == 1:
+                b, encoding = head[0]
+                name = b.split('filename="')[-1].split('"')[0]
+            else: # 使用文件标题作为文件名
+                b, encoding = head[-2]
+                b = b.decode(encoding)
+                ext = '.' + b.split('.')[-1][:-1]
+                name = title + ext
+        except:
+            print('Could not download %s due to parse filename' % title)
+            return
+    filename = escape(name)
+    if os.path.exists(filename):
+        return
+    try:
         with TqdmUpTo(ncols=150, unit='B', unit_scale=True, miniters=1, desc=name) as t:
             urllib.request.urlretrieve(url+uri, filename=filename, reporthook=t.update_to, data=None)
+    except:
+        print('Could not download %s due to networking' % filename)
+        return
 
 def sync_notify(c):
     pre = os.path.join(c['kcm'], '公告')
     if not os.path.exists(pre): os.makedirs(pre)
     all = get_json('/b/wlxt/kcgg/wlkc_ggb/student/pageListXs', {'aoData': [{"name": "iDisplayLength", "value": "1000"}, {"name": "wlkcid", "value": c['wlkcid']}]})['object']['aaData']
     for n in all:
-        path = os.path.join(pre, html.unescape(n['bt']).replace(os.path.sep, '、') + '.txt')
+        if n['ggnrStr'] == None:
+            n['ggnrStr'] = ''
+        path = os.path.join(pre, escape(n['bt']) + '.txt')
         open(path, 'w').write(bs(html.unescape(n['ggnrStr']), 'html.parser').text)
 
 def sync_file(c):
@@ -116,7 +115,7 @@ def sync_file(c):
         files = get_json('/b/wlxt/kj/wlkc_kjxxb/student/kjxxb/%s/%s' % (t['wlkcid'], t['kjflid']))['object']
         for f in files:
             os.chdir(pre)
-            download('/b/wlxt/kj/wlkc_kjxxb/student/downloadFile?sfgk=0&wjid=%s' % f[7], f[1])
+            download('/b/wlxt/kj/wlkc_kjxxb/student/downloadFile?sfgk=0&wjid=%s' % f[7], title=f[1])
             os.chdir(now)
 
 def sync_hw(c):
@@ -126,7 +125,7 @@ def sync_hw(c):
     data = {'aoData': [{"name": "iDisplayLength", "value": "1000"}, {"name": "wlkcid", "value": c['wlkcid']}]}
     hws = get_json('/b/wlxt/kczy/zy/student/zyListWj', data)['object']['aaData'] + get_json('/b/wlxt/kczy/zy/student/zyListYjwg', data)['object']['aaData'] + get_json('/b/wlxt/kczy/zy/student/zyListYpg', data)['object']['aaData']
     for hw in hws:
-        path = os.path.join(pre, html.unescape(hw['bt']).replace(os.path.sep, '、'))
+        path = os.path.join(pre, escape(hw['bt']))
         if not os.path.exists(path): os.makedirs(path)
         open(os.path.join(path, 'info.txt'), 'w').write('%s\n状态：%s\n开始时间：%s\n截止时间：%s\n上传时间：%s\n批阅状态：%s\n批阅时间：%s\n批阅内容：%s\n成绩：%s\n批阅者：%s %s\n' \
             % (hw['bt'], hw['zt'], hw['kssjStr'], hw['jzsjStr'], hw['scsjStr'], hw['pyzt'], hw['pysjStr'], hw['pynr'], hw['cj'], hw['gzzh'], hw['jsm']))
@@ -134,7 +133,7 @@ def sync_hw(c):
         files = page.findAll(class_='wdhere')
         for f in files:
             os.chdir(path) # to avoid filename too long
-            download('/b/wlxt/kczy/zy/student/downloadFile/%s/%s' % (hw['wlkcid'], f.findAll('a')[-1].attrs['onclick'].split("ZyFile('")[-1][:-2]))
+            download('/b/wlxt/kczy/zy/student/downloadFile/%s/%s' % (hw['wlkcid'], f.findAll('a')[-1].attrs['onclick'].split("ZyFile('")[-1][:-2]), name=f.findAll('a')[0].text)
             os.chdir(now)
 
 if __name__ == '__main__':
