@@ -65,12 +65,12 @@ class TqdmUpTo(tqdm):
         self.update(b * bsize - self.n)
 
 def escape(s):
-    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '')
+    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '').replace('\t', '')
 
 def download(uri, name=None, title=None):
     if name is None:
         for f in os.listdir('.'):
-            if f.startswith(title): # already download
+            if f.startswith(title): # already download, not use filesize anymore
                 return
         try:
             h = opener.open(urllib.request.Request(url+uri,urllib.parse.urlencode({}).encode(),headers)).headers.as_string()
@@ -79,9 +79,10 @@ def download(uri, name=None, title=None):
                 b, encoding = head[0]
                 name = b.split('filename="')[-1].split('"')[0]
             else: # 使用文件标题作为文件名
-                b, encoding = head[-2]
-                b = b.decode(encoding)
-                ext = '.' + b.split('.')[-1][:-1]
+                if head[-1][0][:3] == b'Con':
+                    ext = '.' + head[-2][0].split(b'.')[-1].split(b'"')[0].decode()
+                else:
+                    ext = '.' + head[-1][0].split(b'.')[-1].split(b'"')[0].decode()
                 name = title + ext
         except:
             print('Could not download %s due to parse filename' % title)
@@ -90,7 +91,7 @@ def download(uri, name=None, title=None):
     if os.path.exists(filename):
         return
     try:
-        with TqdmUpTo(ncols=150, unit='B', unit_scale=True, miniters=1, desc=name) as t:
+        with TqdmUpTo(ncols=150, unit='B', unit_scale=True, miniters=1, desc=filename) as t:
             urllib.request.urlretrieve(url+uri, filename=filename, reporthook=t.update_to, data=None)
     except:
         print('Could not download %s due to networking' % filename)
