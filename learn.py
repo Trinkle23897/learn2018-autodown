@@ -147,7 +147,7 @@ if __name__ == '__main__':
     if login(username, password):
         typepage = 1 if '.py' in sys.argv[-1] else 0 
         courses = get_courses(typepage)
-        if sys.argv[-1] != '0':
+        if sys.argv[-1] != '0' and typepage == 0:
             courses = [c for c in courses if c['kcm'] == sys.argv[-1]]
         for c in courses:
             if c['kcm'] in ignore:
