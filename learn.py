@@ -145,8 +145,10 @@ if __name__ == '__main__':
         username = input('username: ')
         password = getpass.getpass('password: ')
     if login(username, password):
-        typepage = 1 if '.py' in sys.argv[-1] else int(sys.argv[-1])
+        typepage = 1 if '.py' in sys.argv[-1] else 0 
         courses = get_courses(typepage)
+        if sys.argv[-1] != '0':
+            courses = [c for c in courses if c['kcm'] == sys.argv[-1]]
         for c in courses:
             if c['kcm'] in ignore:
                 print('Skip ' + c['kcm'])

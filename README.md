@@ -11,10 +11,13 @@ pip3 install bs4 tqdm requests --user
 ## Usage
 
 ```bash
-./learn.py [type_number]
+# 下载当前学期课程
+./learn.py
+# 下载所有学期课程
+./learn.py 0
+# 下载指定课程
+./learn.py 计算机网络安全技术
 ```
-
-默认下载本学期课程 （=1），0则为下载所有学期课程
 
 如果不想下载某门课程（比如实验室科研探究），可以在同级目录下新建文件`.ignore`，并添加该课程完整名字，比如：
 
