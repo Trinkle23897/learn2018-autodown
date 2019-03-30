@@ -40,7 +40,7 @@ def login(username, password):
     values = {'i_user': username, 'i_pass': password, 'atOnce': 'true'}
     info = get_page(login_uri, values)
     successful = 'SUCCESS' in info
-    print('Login successfully' if successful else 'Login failed!')
+    print('User %s login successfully' % (username) if successful else 'User %s login failed!' % (username))
     if successful:
         get_page(get_page(info.split('replace("')[-1].split('");\n')[0]).split('location="')[1].split('";\r\n')[0])
     return successful
@@ -150,6 +150,7 @@ if __name__ == '__main__':
         if sys.argv[-1] != '0' and typepage == 0:
             courses = [c for c in courses if c['kcm'] == sys.argv[-1]]
         for c in courses:
+            c['kcm'] = escape(c['kcm'])
             if c['kcm'] in ignore:
                 print('Skip ' + c['kcm'])
             else:
