@@ -49,7 +49,7 @@ def get_courses(typepage=1):
     if typepage == 1:
         query_list = [get_json('/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester')['result']['xnxq']]
     elif typepage == 0:
-        query_list = get_json('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq')
+        query_list = [x for x in get_json('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq') if x != None]
         query_list.sort()
     else:
         print('Unknown typepage number %s' % typepage)
