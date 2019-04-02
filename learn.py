@@ -88,7 +88,7 @@ def download(uri, name=None, title=None):
             print('Could not download %s due to parse filename' % title)
             return
     filename = escape(name)
-    if os.path.exists(filename):
+    if os.path.exists(filename) or 'Connection_close' in filename:
         return
     try:
         with TqdmUpTo(ncols=150, unit='B', unit_scale=True, miniters=1, desc=filename) as t:
