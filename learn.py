@@ -46,13 +46,17 @@ def login(username, password):
     return successful
 
 def get_courses(typepage=1):
-    if typepage == 1:
-        query_list = [get_json('/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester')['result']['xnxq']]
-    elif typepage == 0:
-        query_list = [x for x in get_json('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq') if x != None]
-        query_list.sort()
-    else:
-        print('Unknown typepage number %s' % typepage)
+    try:
+        if typepage == 1:
+            query_list = [get_json('/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester')['result']['xnxq']]
+        elif typepage == 0:
+            query_list = [x for x in get_json('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq') if x != None]
+            query_list.sort()
+        else:
+            print('Unknown typepage number %s' % typepage)
+            return []
+    except:
+        print('您被退学了！')
         return []
     courses = []
     for q in query_list:
@@ -111,7 +115,10 @@ def sync_file(c):
     now = os.getcwd()
     pre = os.path.join(c['kcm'], '课件')
     if not os.path.exists(pre): os.makedirs(pre)
-    tabs = get_json('/b/wlxt/kj/wlkc_kjflb/student/pageList?wlkcid=%s' % c['wlkcid'])['object']['rows'] # query tab
+    try:
+        tabs = get_json('/b/wlxt/kj/wlkc_kjflb/student/pageList?wlkcid=%s' % c['wlkcid'])['object']['rows'] # query tab
+    except:
+        return
     for t in tabs:
         files = get_json('/b/wlxt/kj/wlkc_kjxxb/student/kjxxb/%s/%s' % (t['wlkcid'], t['kjflid']))['object']
         for f in files:
