@@ -104,7 +104,10 @@ def download(uri, name=None, title=None):
 def sync_notify(c):
     pre = os.path.join(c['kcm'], '公告')
     if not os.path.exists(pre): os.makedirs(pre)
-    all = get_json('/b/wlxt/kcgg/wlkc_ggb/student/pageListXs', {'aoData': [{"name": "iDisplayLength", "value": "1000"}, {"name": "wlkcid", "value": c['wlkcid']}]})['object']['aaData']
+    try:
+        all = get_json('/b/wlxt/kcgg/wlkc_ggb/student/pageListXs', {'aoData': [{"name": "iDisplayLength", "value": "1000"}, {"name": "wlkcid", "value": c['wlkcid']}]})['object']['aaData']
+    except:
+        return
     for n in all:
         if n['ggnrStr'] == None:
             n['ggnrStr'] = ''
