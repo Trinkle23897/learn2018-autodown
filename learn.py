@@ -8,6 +8,7 @@ __email__ = "463003665@qq.com"
 
 import os, sys, json, html, time, cgi, email, urllib, getpass, http.cookiejar
 from tqdm import tqdm
+import urllib.request
 from bs4 import BeautifulSoup as bs
 
 url = 'http://learn.tsinghua.edu.cn'
@@ -69,7 +70,7 @@ class TqdmUpTo(tqdm):
         self.update(b * bsize - self.n)
 
 def escape(s):
-    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '').replace('\t', '').replace('*', '').replace('"','_')
+    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?','.').replace('/','_').replace('\'','_').replace('<','').replace('>','').replace('#','').replace(';','').replace('*','_').replace("\"",'_').replace("\'",'_').replace('|','')
 
 def download(uri, name=None, title=None):
     if name is None:
@@ -101,6 +102,13 @@ def download(uri, name=None, title=None):
         print('Could not download %s due to networking' % filename)
         return
 
+def build_notify(s):
+    if s['ggnrStr'] == None:
+        s['ggnrStr'] = ''
+    tp = bs(html.unescape(s['ggnrStr']), 'html.parser').text
+    st = '题目: %s\n发布人: %s\n发布时间: %s\n内容: %s\n' % (s['bt'], s['fbr'], s['fbsjStr'], tp)
+    return st
+
 def sync_notify(c):
     pre = os.path.join(c['kcm'], '公告')
     if not os.path.exists(pre): os.makedirs(pre)
@@ -109,10 +117,8 @@ def sync_notify(c):
     except:
         return
     for n in all:
-        if n['ggnrStr'] == None:
-            n['ggnrStr'] = ''
-        path = os.path.join(pre, escape(n['bt']) + '.txt')
-        open(path, 'w', encoding='utf-8').write(bs(html.unescape(n['ggnrStr']), 'html.parser').text)
+        path = os.path.join(pre, escape(n['bt']) +'.txt')
+        open(path, 'w', encoding='utf-8').write(build_notify(n))
 
 def sync_file(c):
     now = os.getcwd()
@@ -128,6 +134,14 @@ def sync_file(c):
             os.chdir(pre)
             download('/b/wlxt/kj/wlkc_kjxxb/student/downloadFile?sfgk=0&wjid=%s' % f[7], title=f[1])
             os.chdir(now)
+
+def sync_info(c):
+    pre = os.path.join(c['kcm'], '课程信息.txt')
+    try:
+        html = get_page('/f/wlxt/kc/v_kcxx_jskcxx/student/beforeXskcxx?wlkcid=%s&sfgk=-1' % c['wlkcid'])
+        open(pre, 'w').write('\n'.join(bs(html, 'html.parser').find(class_='course-w').text.split()))
+    except:
+        return
 
 def sync_hw(c):
     now = os.getcwd()
@@ -147,6 +161,25 @@ def sync_hw(c):
             download('/b/wlxt/kczy/zy/student/downloadFile/%s/%s' % (hw['wlkcid'], f.findAll('a')[-1].attrs['onclick'].split("ZyFile('")[-1][:-2]), name=f.findAll('a')[0].text)
             os.chdir(now)
 
+def build_discuss(s):
+    disc = '课程：%s\n内容：%s\n学号：%s\n姓名：%s\n发布时间:%s\n最后回复：%s\n回复时间：%s\n' % (s['kcm'], s['bt'], s['fbr'], s['fbrxm'], s['fbsj'], s['zhhfrxm'], s['zhhfsj'])
+    return disc
+
+def sync_discuss(c):
+    pre = os.path.join(c['kcm'], '讨论')
+    if not os.path.exists(pre): os.makedirs(pre)
+    data = {'aoData': [{"name": "iDisplayLength", "value": "1000"}, {"name": "wlkcid", "value": c['wlkcid']}]}
+    disc = get_json('/b/wlxt/bbs/v_bbs_tltb_all/xsbbspageListSearch', data)['object']['aaData']
+    for d in disc:
+        filename = os.path.join(pre, escape(d['bt']) + '.txt')
+        if os.path.exists(filename):
+            continue
+        try:
+            html = get_page('/f/wlxt/bbs/bbs_tltb/student/viewTlById?wlkcid=%s&id=%s&tabbh=2&bqid=%s' % (d['wlkcid'], d['id'], d['bqid']))
+            open(filename, 'w').write(build_discuss(d) + bs(html, 'html.parser').find(class_='detail').text)
+        except:
+            pass
+
 if __name__ == '__main__':
     ignore = open('.ignore', encoding='utf-8').read().split() if os.path.exists('.ignore') else []
     if os.path.exists('.pass'):
@@ -155,7 +188,7 @@ if __name__ == '__main__':
         username = input('username: ')
         password = getpass.getpass('password: ')
     if login(username, password):
-        typepage = 1 if '.py' in sys.argv[-1] else 0 
+        typepage = 1 if '.py' in sys.argv[-1] else 0
         courses = get_courses(typepage)
         if sys.argv[-1] != '0' and typepage == 0:
             courses = [c for c in courses if c['kcm'] == sys.argv[-1]]
@@ -166,6 +199,8 @@ if __name__ == '__main__':
             else:
                 print('Sync ' + c['kcm'])
                 if not os.path.exists(c['kcm']): os.makedirs(c['kcm'])
+                sync_info(c)
+                sync_discuss(c)
                 sync_notify(c)
                 sync_file(c)
                 sync_hw(c)
