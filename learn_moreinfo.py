@@ -79,7 +79,7 @@ class TqdmUpTo(tqdm):
         self.update(b * bsize - self.n)
 
 def escape(s):
-    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?','.')
+    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?','.').replace('.','').replace('/','_').replace('\'','_').replace('<','').replace('>','').replace('#','').replace(';','').replace('*','_').replace("\"",'_').replace("\'",'_').replace('|','')
 
 def download(uri, name=None, title=None):
     if name is None:
@@ -176,7 +176,7 @@ def sync_info(c):
     
     try:
         html = getHtml('http://learn.tsinghua.edu.cn/f/wlxt/kc/v_kcxx_jskcxx/student/beforeXskcxx?wlkcid=%s&sfgk=-1'%c['wlkcid'])
-        print(html)
+        #print(html)
         path = os.path.join(pre,c['kcm']+'_课程信息.html')
         print(path)
         open(path ,'wb').write(html)
@@ -206,6 +206,33 @@ def sync_hw(c):
             download('/b/wlxt/kczy/zy/student/downloadFile/%s/%s' % (hw['wlkcid'], f.findAll('a')[-1].attrs['onclick'].split("ZyFile('")[-1][:-2]), name=f.findAll('a')[0].text)
             os.chdir(now)
 
+def build_discuss(s):
+    dis = '课程：%s\n 内容：%s\n 学号：%s\n 姓名：%s\n 发布时间:%s\n 最后回复：%s\n 回复时间：%s\n 标题ID：%s\n ID:%s\n'%(s['kcm'],s['bt'],s['fbr'],s['fbrxm'],s['fbsj'],s['zhhfrxm'],s['zhhfsj'],s['tltid'],s['id'])
+    return dis
+
+def sync_discuss(c):
+    now = os.getcwd()
+    pre = os.path.join(c['kcm'], '讨论')
+    if not os.path.exists(pre): os.makedirs(pre)
+    data = {'aoData': [{"name": "iDisplayLength", "value": "1000"}, {"name": "wlkcid", "value": c['wlkcid']}]}
+    dis = get_json('/b/wlxt/bbs/v_bbs_tltb_all/xsbbspageListSearch',data)['object']['aaData']
+    i = 0
+    for d in dis:
+        i = i+1
+        ptp = os.path.join(pre, '%d_'%i+escape(d['bt']))
+        if not os.path.exists(ptp): os.makedirs(ptp)        
+        open(os.path.join(ptp, escape(d['bt'])+'.txt') ,'w',encoding='utf-8').write(build_discuss(d))
+        path = os.path.join(ptp,escape(d['bt'])+'_回复.html')
+        if os.path.exists(path):
+            print('Reuse...\n')
+            continue
+        print(path)
+        try:
+            html = getHtml('http://learn.tsinghua.edu.cn/f/wlxt/bbs/bbs_tltb/student/viewTlById?wlkcid=%s&id=%s&tabbh=2&bqid=%s'%(d['wlkcid'],d['id'],d['bqid']))
+            open(path ,'wb').write(html) 
+        except:
+            i = i - 1
+        
 if __name__ == '__main__':
     #ignore = open('.ignore',encoding='utf-8').read().split() if os.path.exists('.ignore') else []
     if os.path.exists('.pass'):
@@ -227,8 +254,10 @@ if __name__ == '__main__':
 
             print('Sync ' + c['kcm'])
             if not os.path.exists(c['kcm']): os.makedirs(c['kcm'])
-            sync_notify(c)
-            sync_file(c)
-            sync_hw(c)
-            sync_info(c)
-        open('课程列表.txt' ,'w').write(kclb)
+            sync_discuss(c)
+            #sync_notify(c)
+            #sync_file(c)
+            #sync_hw(c)
+            #sync_info(c)
+            
+        #open('课程列表.txt' ,'w').write(kclb)
