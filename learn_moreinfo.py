@@ -165,7 +165,7 @@ def sync_file(c):
         i = 0
         for f in files:
             i = i + 1
-            pretp = os.path.join(pre,'%d_%s'%(i,f[1]))
+            pretp = os.path.join(pre,'%d_%s'%(i,escape(f[1])))
             if not os.path.exists(pretp): os.makedirs(pretp)
             os.chdir(pretp)
             try:
