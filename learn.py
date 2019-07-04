@@ -69,7 +69,7 @@ class TqdmUpTo(tqdm):
         self.update(b * bsize - self.n)
 
 def escape(s):
-    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '').replace('\t', '')
+    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '').replace('\t', '').replace('*', '').replace('"','_')
 
 def download(uri, name=None, title=None):
     if name is None:
