@@ -112,7 +112,7 @@ def sync_notify(c):
         if n['ggnrStr'] == None:
             n['ggnrStr'] = ''
         path = os.path.join(pre, escape(n['bt']) + '.txt')
-        open(path, 'w').write(bs(html.unescape(n['ggnrStr']), 'html.parser').text)
+        open(path, 'w', encoding='utf-8').write(bs(html.unescape(n['ggnrStr']), 'html.parser').text)
 
 def sync_file(c):
     now = os.getcwd()
@@ -138,7 +138,7 @@ def sync_hw(c):
     for hw in hws:
         path = os.path.join(pre, escape(hw['bt']))
         if not os.path.exists(path): os.makedirs(path)
-        open(os.path.join(path, 'info.txt'), 'w').write('%s\n状态：%s\n开始时间：%s\n截止时间：%s\n上传时间：%s\n批阅状态：%s\n批阅时间：%s\n批阅内容：%s\n成绩：%s\n批阅者：%s %s\n' \
+        open(os.path.join(path, 'info.txt'), 'w', encoding='utf-8').write('%s\n状态：%s\n开始时间：%s\n截止时间：%s\n上传时间：%s\n批阅状态：%s\n批阅时间：%s\n批阅内容：%s\n成绩：%s\n批阅者：%s %s\n' \
             % (hw['bt'], hw['zt'], hw['kssjStr'], hw['jzsjStr'], hw['scsjStr'], hw['pyzt'], hw['pysjStr'], hw['pynr'], hw['cj'], hw['gzzh'], hw['jsm']))
         page = bs(get_page('/f/wlxt/kczy/zy/student/viewCj?wlkcid=%s&zyid=%s&xszyid=%s' % (hw['wlkcid'], hw['zyid'], hw['xszyid'])), 'html.parser')
         files = page.findAll(class_='wdhere')
@@ -148,9 +148,9 @@ def sync_hw(c):
             os.chdir(now)
 
 if __name__ == '__main__':
-    ignore = open('.ignore').read().split() if os.path.exists('.ignore') else []
+    ignore = open('.ignore', encoding='utf-8').read().split() if os.path.exists('.ignore') else []
     if os.path.exists('.pass'):
-        username, password = open('.pass').read().split()
+        username, password = open('.pass', encoding='utf-8').read().split()
     else:
         username = input('username: ')
         password = getpass.getpass('password: ')
