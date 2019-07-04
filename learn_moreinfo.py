@@ -79,7 +79,7 @@ class TqdmUpTo(tqdm):
         self.update(b * bsize - self.n)
 
 def escape(s):
-    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '')
+    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?','.')
 
 def download(uri, name=None, title=None):
     if name is None:
@@ -118,11 +118,6 @@ def build_notify(s):
     st = '题目: %s\n 发布人: %s\n 发布时间: %s\n 内容: %s\n ID: %s\n'%(s['bt'],s['fbr'],s['fbsjStr'],tp,s['wlkcid'])
     return st
 def sync_notify(c):
-    try:
-        #shutil.rmtree(os.path.join(c['kcm'], '公告'))
-        shutil.rmtree(os.path.join(c['kcm'], '公告2'))
-    except:
-        print('No gonggao\n')
     pre = os.path.join(c['kcm'], '公告')
     
     if not os.path.exists(pre): os.makedirs(pre)
@@ -134,7 +129,7 @@ def sync_notify(c):
     i = 0
     for n in all:
         i = i + 1
-        path = os.path.join(pre, '%d_'%i + escape(n['bt']) + escape(n['fbsjStr'])+'.txt')
+        path = os.path.join(pre, '%d_'%i + escape(n['bt']) +'.txt')
         tp = build_notify(n)
         
         path = path.replace('/','')
@@ -148,11 +143,6 @@ def build_fileinfo(s):
     st = '文件名:%s\n简介:%s\n发布时间:%s\n ID:%s\n'%(s[1],s[5],s[6],s[4])
     return st
 def sync_file(c):
-    try:
-        #shutil.rmtree(os.path.join(c['kcm'], '公告'))
-        shutil.rmtree(os.path.join(c['kcm'], '课件'))
-    except:
-        print('No gonggao\n')
     now = os.getcwd()
     pre = os.path.join(c['kcm'], '课件')
     if not os.path.exists(pre): os.makedirs(pre)
@@ -166,7 +156,11 @@ def sync_file(c):
         for f in files:
             i = i + 1
             pretp = os.path.join(pre,'%d_%s'%(i,escape(f[1])))
-            if not os.path.exists(pretp): os.makedirs(pretp)
+
+            if not os.path.exists(pretp): 
+            	os.makedirs(pretp)
+            else:
+            	continue
             os.chdir(pretp)
             try:
                 download('/b/wlxt/kj/wlkc_kjxxb/student/downloadFile?sfgk=0&wjid=%s' % f[7], title=f[1])
@@ -194,10 +188,6 @@ def build_course_info(s):
     return pre
 def sync_hw(c):
     now = os.getcwd()
-    try:
-        shutil.rmtree(os.path.join(c['kcm'], '作业'))
-    except:
-        print('No hw\n')
     pre = os.path.join(c['kcm'], '作业')
     if not os.path.exists(pre): os.makedirs(pre)
     data = {'aoData': [{"name": "iDisplayLength", "value": "1000"}, {"name": "wlkcid", "value": c['wlkcid']}]}
