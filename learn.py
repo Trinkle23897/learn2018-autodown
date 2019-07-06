@@ -61,7 +61,10 @@ def get_courses(typepage=1):
         return []
     courses = []
     for q in query_list:
-        courses += get_json('/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId/%s' % q)['resultList']
+        try:
+            courses += get_json('/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId/%s' % q)['resultList']
+        except:
+            continue
     return courses
 
 class TqdmUpTo(tqdm):
@@ -169,7 +172,10 @@ def sync_discuss(c):
     pre = os.path.join(c['kcm'], '讨论')
     if not os.path.exists(pre): os.makedirs(pre)
     data = {'aoData': [{"name": "iDisplayLength", "value": "1000"}, {"name": "wlkcid", "value": c['wlkcid']}]}
-    disc = get_json('/b/wlxt/bbs/v_bbs_tltb_all/xsbbspageListSearch', data)['object']['aaData']
+    try:
+        disc = get_json('/b/wlxt/bbs/v_bbs_tltb_all/xsbbspageListSearch', data)['object']['aaData']
+    except:
+        return
     for d in disc:
         filename = os.path.join(pre, escape(d['bt']) + '.txt')
         if os.path.exists(filename):
@@ -201,6 +207,6 @@ if __name__ == '__main__':
                 if not os.path.exists(c['kcm']): os.makedirs(c['kcm'])
                 sync_info(c)
                 sync_discuss(c)
-                sync_notify(c)
-                sync_file(c)
-                sync_hw(c)
+                #sync_notify(c)
+                #sync_file(c)
+                #sync_hw(c)
