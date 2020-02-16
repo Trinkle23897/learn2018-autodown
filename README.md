@@ -14,17 +14,13 @@ pip3 install bs4 tqdm requests --user
 # 下载当前学期课程
 ./learn.py
 # 下载所有学期课程
-./learn.py 0
+./learn.py --all
+# 下载指定学期课程
+./learn.py --semester 2018-2019-1
 # 下载指定课程
-./learn.py 计算机网络安全技术
-```
-
-如果不想下载某门课程（比如实验室科研探究），可以在同级目录下新建文件`.ignore`，并添加该课程完整名字，比如：
-
-```bash
-➜  wjy git:(master) ✗ cat .ignore 
-计算机组成原理
-计算机网络安全技术
+./learn.py --course 计算机网络安全技术 计算机组成原理
+# 跳过某几个课程下载
+./learn.py --ignore 数据结构 实验室科研探究（1）
 ```
 
 ## Features
@@ -36,6 +32,7 @@ pip3 install bs4 tqdm requests --user
 4. 下载课程信息
 5. 增量更新
 6. 可选下载课程
+7. 下载助教课程
 
 ## Common Issues
 
