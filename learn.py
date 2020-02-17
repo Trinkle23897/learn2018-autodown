@@ -229,7 +229,7 @@ if __name__ == '__main__':
     if login(username, password):
         courses = get_courses(args)
         for c in courses:
-            c['kcm'] = escape(c['kcm'])
+            c['kcm'] = escape(c['kcm']).replace(' ', '').replace('_', '').replace('（', '(').replace('）', ')')
             c['_type'] = {'0': 'teacher', '3': 'student'}[c['jslx']]
             print('Sync ' + c['xnxq'] + ' ' + c['kcm'])
             if not os.path.exists(c['kcm']): os.makedirs(c['kcm'])
