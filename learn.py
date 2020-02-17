@@ -75,9 +75,9 @@ def get_courses(args):
         except:
             continue
     if args.course:
-        courses = [c for c in courses if c in args.course]
+        courses = [c for c in courses if c['kcm'] in args.course]
     if args.ignore:
-        courses = [c for c in courses if c not in args.ignore]
+        courses = [c for c in courses if c['kcm'] not in args.ignore]
     return courses
 
 class TqdmUpTo(tqdm):
@@ -129,7 +129,8 @@ def sync_file(c):
         files = get_json('/b/wlxt/kj/v_kjxxb_wjwjb/teacher/queryByWlkcid?wlkcid=%s&size=0' % c['wlkcid'])['object']['resultsList']
     for f in files:
         os.chdir(pre)
-        download('/b/wlxt/kj/wlkc_kjxxb/%s/downloadFile?sfgk=0&wjid=%s' % (c['_type'], f['wjid']), name=f['bt']+'.'+f['wjlx'])
+        name = f['bt']+'.'+f['wjlx'] if f['wjlx'] else f['bt']
+        download('/b/wlxt/kj/wlkc_kjxxb/%s/downloadFile?sfgk=0&wjid=%s' % (c['_type'], f['wjid']), name=name)
         os.chdir(now)
 
 def sync_info(c):
