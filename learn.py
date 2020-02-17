@@ -36,6 +36,9 @@ def get_page(uri, values={}):
 def get_json(uri, values={}):
     return json.loads(get_page(uri, values))
 
+def escape(s):
+    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?','.').replace('/','_').replace('\'','_').replace('<','').replace('>','').replace('#','').replace(';','').replace('*','_').replace("\"",'_').replace("\'",'_').replace('|','')
+
 def login(username, password):
     login_uri = 'https://id.tsinghua.edu.cn/do/off/ui/auth/login/post/bb5df85216504820be7bba2b0ae1535b/0?/login.do'
     values = {'i_user': username, 'i_pass': password, 'atOnce': 'true'}
@@ -74,6 +77,11 @@ def get_courses(args):
             ]})['object']['aaData']
         except:
             continue
+    escape_c = []
+    for c in courses:
+        c['kcm'] = escape(c['kcm']).replace(' ', '').replace('_', '').replace('（', '(').replace('）', ')')
+        escape_c.append(c)
+    courses = escape_c
     if args.course:
         courses = [c for c in courses if c['kcm'] in args.course]
     if args.ignore:
@@ -84,9 +92,6 @@ class TqdmUpTo(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
         if tsize is not None: self.total = tsize
         self.update(b * bsize - self.n)
-
-def escape(s):
-    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?','.').replace('/','_').replace('\'','_').replace('<','').replace('>','').replace('#','').replace(';','').replace('*','_').replace("\"",'_').replace("\'",'_').replace('|','')
 
 def download(uri, name):
     filename = escape(name)
@@ -229,7 +234,6 @@ if __name__ == '__main__':
     if login(username, password):
         courses = get_courses(args)
         for c in courses:
-            c['kcm'] = escape(c['kcm']).replace(' ', '').replace('_', '').replace('（', '(').replace('）', ')')
             c['_type'] = {'0': 'teacher', '3': 'student'}[c['jslx']]
             print('Sync ' + c['xnxq'] + ' ' + c['kcm'])
             if not os.path.exists(c['kcm']): os.makedirs(c['kcm'])
