@@ -2,10 +2,10 @@
 
 ## Dependency
 
-python3, bs4, tqdm, requests
+python>=3.6, bs4, tqdm, requests
 
 ```bash
-pip3 install bs4 tqdm requests --user
+pip3 install bs4 tqdm requests --user -U
 ```
 
 ## Usage
@@ -33,3 +33,8 @@ pip3 install bs4 tqdm requests --user
 5. 增量更新
 6. 可选下载课程
 7. 下载助教课程
+
+## Common Issues
+
+1. `json.decoder.JSONDecodeError`: 目前看起来是网络不稳定导致，可以重跑试试看
+2. 卡在login：还是网络原因，看看pulse-secure关了没

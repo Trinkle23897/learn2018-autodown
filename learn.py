@@ -6,7 +6,7 @@ __copyright__ = "Copyright (C) 2019 Trinkle23897"
 __license__ = "MIT"
 __email__ = "463003665@qq.com"
 
-import os, sys, json, html, time, email, urllib, getpass, base64, argparse
+import os, sys, json, html, time, email, urllib, getpass, base64, hashlib, argparse
 from tqdm import tqdm
 import urllib.request, http.cookiejar
 from bs4 import BeautifulSoup as bs
@@ -176,9 +176,12 @@ def sync_hw(c):
     if not os.path.exists(pre): os.makedirs(pre)
     data = {'aoData': [{"name": "wlkcid", "value": c['wlkcid']}]}
     if c['_type'] == 'student':
-        hws = get_json('/b/wlxt/kczy/zy/student/zyListWj', data)['object']['aaData']\
-            + get_json('/b/wlxt/kczy/zy/student/zyListYjwg', data)['object']['aaData']\
-            + get_json('/b/wlxt/kczy/zy/student/zyListYpg', data)['object']['aaData']
+        hws = []
+        for hwtype in ['zyListWj', 'zyListYjwg', 'zyListYpg']:
+            try:
+                hws += get_json('/b/wlxt/kczy/zy/student/%s' % hwtype, data)['object']['aaData']
+            except:
+                continue
     else:
         hws = get_json('/b/wlxt/kczy/zy/teacher/pageList', data)['object']['aaData']
     for hw in hws:
@@ -217,7 +220,7 @@ def sync_hw(c):
             stus = get_json('/b/wlxt/kczy/xszy/teacher/getUndoInfo', data)['object']['aaData']
             for stu in stus:
                 info_str += '%s,%s,%s,%s,%s,%s,%s,%s\n' % (stu['xh'], stu['xm'], stu['dwmc'], stu['bm'], stu['scsjStr'], stu['zt'], stu['cj'], stu['jsm'])
-            open(os.path.join(path, 'info.csv'), 'w', encoding='utf-8').write(info_str)
+            open(os.path.join(path, 'info_%s.csv' % c['wlkcid']), 'w', encoding='utf-8').write(info_str)
 
 def build_discuss(s):
     disc = '课程：%s\n内容：%s\n学号：%s\n姓名：%s\n发布时间:%s\n最后回复：%s\n回复时间：%s\n' % (s['kcm'], s['bt'], s['fbr'], s['fbrxm'], s['fbsj'], s['zhhfrxm'], s['zhhfsj'])
@@ -240,13 +243,70 @@ def sync_discuss(c):
         except:
             pass
 
+def gethash(fname):
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+def dfs_clean(d):
+    subdirs = [os.path.join(d, i) for i in os.listdir(d) if os.path.isdir(os.path.join(d, i))]
+    for i in subdirs:
+        dfs_clean(i)
+    files = [os.path.join(d, i) for i in os.listdir(d) if os.path.isfile(os.path.join(d, i))]
+    info = {}
+    for f in files:
+        if os.path.getsize(f):
+            info[f] = {'size': os.path.getsize(f), 'time': os.path.getmtime(f), 'hash': '', 'rm': 0}
+    info = list({k: v for k, v in sorted(info.items(), key=lambda item: item[1]['size'])}.items())
+    for i in range(len(info)):
+        for j in range(i):
+            if info[i][1]['size'] == info[j][1]['size']:
+                if info[i][1]['hash'] == '':
+                    info[i][1]['hash'] = gethash(info[i][0])
+                if info[j][1]['hash'] == '':
+                    info[j][1]['hash'] = gethash(info[j][0])
+                if info[i][1]['hash'] == info[j][1]['hash']:
+                    if info[i][1]['time'] < info[j][1]['time']:
+                        info[i][1]['rm'] = 1
+                    elif info[i][1]['time'] > info[j][1]['time']:
+                        info[j][1]['rm'] = 1
+                    elif len(info[i][0]) < len(info[j][0]):
+                        info[i][1]['rm'] = 1
+                    elif len(info[i][0]) > len(info[j][0]):
+                        info[j][1]['rm'] = 1
+    rm = [i[0] for i in info if i[1]['rm']]
+    if rm:
+        print('Clear', d)
+        print(rm)
+        for f in rm:
+            os.remove(f)
+
+def clear(args):
+    courses = [i for i in os.listdir('.') if os.path.isdir(i) and not i.startswith('.')]
+    if args.all:
+        pass
+    else:
+        if args.course:
+            courses = [i for i in courses if i in args.course]
+        if args.ignore:
+            courses = [i for i in courses if i not in args.ignore]
+    courses.sort()
+    for c in courses:
+        dfs_clean(os.path.join(c, '课件'))
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--all", action='store_true')
+    parser.add_argument("--clear", action='store_true', help='remove the duplicate course file')
     parser.add_argument("--semester", nargs='+', type=str, default=[])
     parser.add_argument("--ignore", nargs='+', type=str, default=[])
     parser.add_argument("--course", nargs='+', type=str, default=[])
     args = parser.parse_args()
+    if args.clear:
+        clear(args)
+        exit()
     if os.path.exists('.pass'):
         username, password = open('.pass', encoding='utf-8').read().split()
     else:
