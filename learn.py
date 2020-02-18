@@ -12,7 +12,7 @@ import urllib.request, http.cookiejar
 from bs4 import BeautifulSoup as bs
 
 url = 'http://learn.tsinghua.edu.cn'
-user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'
+user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
 headers = {'User-Agent': user_agent, 'Connection': 'keep-alive'}
 cookie = http.cookiejar.MozillaCookieJar()
 handler = urllib.request.HTTPCookieProcessor(cookie)
@@ -20,13 +20,13 @@ opener = urllib.request.build_opener(handler)
 urllib.request.install_opener(opener)
 
 def open_page(uri, values={}):
-    post_data = urllib.parse.urlencode(values).encode()
+    post_data = urllib.parse.urlencode(values).encode() if values else None
     request = urllib.request.Request(uri if uri.startswith('http') else url + uri, post_data, headers)
     try:
         response = opener.open(request)
         return response
     except urllib.error.URLError as e:
-        print(e.code, ':', e.reason)
+        print(uri, e.code, ':', e.reason)
 
 def get_page(uri, values={}):
     data = open_page(uri, values)
@@ -51,6 +51,7 @@ def login(username, password):
 
 def get_courses(args):
     try:
+        now = get_json('/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester')['result']['xnxq']
         if args.all or args.course or args.semester:
             query_list = [x for x in get_json('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq') if x != None]
             query_list.sort()
@@ -58,9 +59,11 @@ def get_courses(args):
                 query_list_ = [q for q in query_list if q in args.semester]
                 if len(query_list_) == 0:
                     print('Invalid semester, choices: ', query_list)
+                    return []
                 query_list = query_list_
         else:
-            query_list = [get_json('/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester')['result']['xnxq']]
+            current = True
+            query_list = [now]
     except:
         print('您被退学了！')
         return []
@@ -77,6 +80,24 @@ def get_courses(args):
             ]})['object']['aaData']
         except:
             continue
+    if now in query_list: # a bug in wlxt
+        try:
+            c_stu, c_ta = [], []
+            c_stu = get_json('/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId/' + query_list[-1])['resultList']
+            c_ta = get_json('/b/kc/v_wlkc_kcb/queryAsorCoCourseList/%s/0' % query_list[-1])['resultList']
+        except:
+            pass
+        finally:
+            current_courses = []
+            for c in c_stu:
+                c['jslx'] = '3'
+                current_courses.append(c)
+            for c in c_ta:
+                c['jslx'] = '0'
+                current_courses.append(c)
+            wlkcids = [c['wlkcid'] for c in courses]
+            current_courses = [c for c in current_courses if c['wlkcid'] not in wlkcids]
+            courses += current_courses
     escape_c = []
     for c in courses:
         c['kcm'] = escape(c['kcm']).replace(' ', '').replace('_', '').replace('（', '(').replace('）', ')')
