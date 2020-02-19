@@ -11,7 +11,7 @@ pip3 install bs4 tqdm requests --user -U
 ## Usage
 
 ```bash
-# 下载当前学期课程
+# 下载当前学期课程（默认）
 ./learn.py
 # 下载所有学期课程
 ./learn.py --all
@@ -21,6 +21,9 @@ pip3 install bs4 tqdm requests --user -U
 ./learn.py --course 计算机网络安全技术 计算机组成原理
 # 跳过某几个课程下载
 ./learn.py --ignore 数据结构 "实验室科研探究(1)"
+# 移除所有文件夹下完全相同的文件
+./learn.py --clear --all
+# 以上参数均可组合使用
 ```
 
 ## Features

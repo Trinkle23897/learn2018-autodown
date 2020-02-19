@@ -6,7 +6,7 @@ __copyright__ = "Copyright (C) 2019 Trinkle23897"
 __license__ = "MIT"
 __email__ = "463003665@qq.com"
 
-import os, sys, json, html, time, email, urllib, getpass, base64, hashlib, argparse
+import os, sys, json, html, time, email, urllib, getpass, base64, hashlib, argparse, platform, subprocess
 from tqdm import tqdm
 import urllib.request, http.cookiejar
 from bs4 import BeautifulSoup as bs
@@ -116,7 +116,7 @@ class TqdmUpTo(tqdm):
 
 def download(uri, name):
     filename = escape(name)
-    if os.path.exists(filename) or 'Connection__close' in filename:
+    if os.path.exists(filename) and os.path.getsize(filename) or 'Connection__close' in filename:
         return
     try:
         with TqdmUpTo(dynamic_ncols=True, unit='B', unit_scale=True, miniters=1, desc=filename) as t:
@@ -188,13 +188,13 @@ def sync_hw(c):
         path = os.path.join(pre, escape(hw['bt']))
         if not os.path.exists(path): os.makedirs(path)
         if c['_type'] == 'student':
-            open(os.path.join(path, 'info.txt'), 'w', encoding='utf-8').write('%s\n状态：%s\n开始时间：%s\n截止时间：%s\n上传时间：%s\n批阅状态：%s\n批阅时间：%s\n批阅内容：%s\n成绩：%s\n批阅者：%s %s\n' \
+            open(os.path.join(path, 'info_%s.txt' % hw['xh']), 'w', encoding='utf-8').write('%s\n状态：%s\n开始时间：%s\n截止时间：%s\n上传时间：%s\n批阅状态：%s\n批阅时间：%s\n批阅内容：%s\n成绩：%s\n批阅者：%s %s\n' \
                 % (hw['bt'], hw['zt'], hw['kssjStr'], hw['jzsjStr'], hw['scsjStr'], hw['pyzt'], hw['pysjStr'], hw['pynr'], hw['cj'], hw['gzzh'], hw['jsm']))
             page = bs(get_page('/f/wlxt/kczy/zy/student/viewCj?wlkcid=%s&zyid=%s&xszyid=%s' % (hw['wlkcid'], hw['zyid'], hw['xszyid'])), 'html.parser')
             files = page.findAll(class_='wdhere')
             for f in files:
                 os.chdir(path) # to avoid filename too long
-                download('/b/wlxt/kczy/zy/%s/downloadFile/%s/%s' % (c['_type'], hw['wlkcid'], f.findAll('a')[-1].attrs['onclick'].split("ZyFile('")[-1][:-2]), name=f.findAll('a')[0].text)
+                download('/b/wlxt/kczy/zy/%s/downloadFile/%s/%s' % (c['_type'], hw['wlkcid'], f.findAll('a')[-1].attrs['onclick'].split("ZyFile('")[-1][:-2]), name=hw['xh']+'_'+f.findAll('a')[0].text)
                 os.chdir(now)
         else:
             print(hw['bt'])
@@ -244,6 +244,8 @@ def sync_discuss(c):
             pass
 
 def gethash(fname):
+    if platform.system() == 'Linux':
+        return subprocess.check_output(['md5sum', fname]).decode().split()[0]
     hash_md5 = hashlib.md5()
     with open(fname, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
@@ -293,8 +295,9 @@ def clear(args):
         if args.ignore:
             courses = [i for i in courses if i not in args.ignore]
     courses.sort()
-    for c in courses:
-        dfs_clean(os.path.join(c, '课件'))
+    for i, c in enumerate(courses):
+        print(i, c)
+        dfs_clean(c))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
