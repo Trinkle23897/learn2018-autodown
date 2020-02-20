@@ -122,7 +122,9 @@ def download(uri, name):
         with TqdmUpTo(dynamic_ncols=True, unit='B', unit_scale=True, miniters=1, desc=filename) as t:
             urllib.request.urlretrieve(url+uri, filename=filename, reporthook=t.update_to, data=None)
     except:
-        print('Could not download %s due to networking' % filename)
+        print('Could not download %s due to networking ... removing broken file' % filename)
+        if os.path.exists(filename):
+            os.remove(filename)
         return
 
 def build_notify(s):
@@ -170,6 +172,20 @@ def sync_info(c):
     except:
         return
 
+def append_hw_csv(fname, stu):
+    if not os.path.exists(fname):
+        f = ['学号,姓名,院系,班级,上交时间,状态,成绩,批阅老师']
+    else:
+        f = open(fname, encoding='utf-8').read().split('\n')[:-1]
+    info_str = '%s,%s,%s,%s,%s,%s,%s,%s' % (stu['xh'], stu['xm'], stu['dwmc'], stu['bm'], stu['scsjStr'], stu['zt'], stu['cj'], stu['jsm'])
+    xhs = [i.split(',')[0] for i in f]
+    if stu['xh'] in xhs:
+        i = xhs.index(stu['xh'])
+        f[i] = info_str
+    else:
+        f.append(info_str)
+    open(fname, 'w', encoding='utf-8').write('\n'.join(f) + '\n')
+
 def sync_hw(c):
     now = os.getcwd()
     pre = os.path.join(c['kcm'], '作业')
@@ -188,8 +204,7 @@ def sync_hw(c):
         path = os.path.join(pre, escape(hw['bt']))
         if not os.path.exists(path): os.makedirs(path)
         if c['_type'] == 'student':
-            open(os.path.join(path, 'info_%s.txt' % hw['xh']), 'w', encoding='utf-8').write('%s\n状态：%s\n开始时间：%s\n截止时间：%s\n上传时间：%s\n批阅状态：%s\n批阅时间：%s\n批阅内容：%s\n成绩：%s\n批阅者：%s %s\n' \
-                % (hw['bt'], hw['zt'], hw['kssjStr'], hw['jzsjStr'], hw['scsjStr'], hw['pyzt'], hw['pysjStr'], hw['pynr'], hw['cj'], hw['gzzh'], hw['jsm']))
+            append_hw_csv(os.path.join(path, 'info_%s.csv' % c['wlkcid']), hw)
             page = bs(get_page('/f/wlxt/kczy/zy/student/viewCj?wlkcid=%s&zyid=%s&xszyid=%s' % (hw['wlkcid'], hw['zyid'], hw['xszyid'])), 'html.parser')
             files = page.findAll(class_='wdhere')
             for f in files:
@@ -199,10 +214,9 @@ def sync_hw(c):
         else:
             print(hw['bt'])
             data = {'aoData': [{"name": "wlkcid", "value": c['wlkcid']}, {"name": "zyid", "value": hw['zyid']}]}
-            info_str = '学号,姓名,院系,班级,上交时间,状态,成绩,批阅老师\n'
             stus = get_json('/b/wlxt/kczy/xszy/teacher/getDoneInfo', data)['object']['aaData']
             for stu in stus:
-                info_str += '%s,%s,%s,%s,%s,%s,%s,%s\n' % (stu['xh'], stu['xm'], stu['dwmc'], stu['bm'], stu['scsjStr'], stu['zt'], stu['cj'], stu['jsm'])
+                append_hw_csv(os.path.join(path, 'info_%s.csv' % c['wlkcid']), stu)
                 page = bs(get_page('/f/wlxt/kczy/xszy/teacher/beforePiYue?wlkcid=%s&xszyid=%s' % (stu['wlkcid'], stu['xszyid'])), 'html.parser')
                 files = page.findAll(class_='wdhere')
                 for f in files:
@@ -219,8 +233,7 @@ def sync_hw(c):
                     os.chdir(now)
             stus = get_json('/b/wlxt/kczy/xszy/teacher/getUndoInfo', data)['object']['aaData']
             for stu in stus:
-                info_str += '%s,%s,%s,%s,%s,%s,%s,%s\n' % (stu['xh'], stu['xm'], stu['dwmc'], stu['bm'], stu['scsjStr'], stu['zt'], stu['cj'], stu['jsm'])
-            open(os.path.join(path, 'info_%s.csv' % c['wlkcid']), 'w', encoding='utf-8').write(info_str)
+                append_hw_csv(os.path.join(path, 'info_%s.csv' % c['wlkcid']), stu)
 
 def build_discuss(s):
     disc = '课程：%s\n内容：%s\n学号：%s\n姓名：%s\n发布时间:%s\n最后回复：%s\n回复时间：%s\n' % (s['kcm'], s['bt'], s['fbr'], s['fbrxm'], s['fbsj'], s['zhhfrxm'], s['zhhfsj'])
@@ -280,8 +293,7 @@ def dfs_clean(d):
                         info[j][1]['rm'] = 1
     rm = [i[0] for i in info if i[1]['rm']]
     if rm:
-        print('Clear', d)
-        print(rm)
+        print('rmlist:', rm)
         for f in rm:
             os.remove(f)
 
@@ -297,7 +309,9 @@ def clear(args):
     courses.sort()
     for i, c in enumerate(courses):
         print(i, c)
-        dfs_clean(c))
+        for subdir in ['课件', '作业']:
+            d = os.path.join(c, subdir)
+            if os.path.exists(d): dfs_clean(d)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
