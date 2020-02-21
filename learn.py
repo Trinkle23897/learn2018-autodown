@@ -34,7 +34,13 @@ def get_page(uri, values={}):
         return data.read().decode()
 
 def get_json(uri, values={}):
-    return json.loads(get_page(uri, values))
+    while True:
+        try:
+            page = get_page(uri, values)
+            result = json.loads(page)
+            return result
+        except json.JSONDecodeError:
+            print('JSON Decode Error, reconnecting... %s' % page, end='\r')
 
 def escape(s):
     return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?','.').replace('/','_').replace('\'','_').replace('<','').replace('>','').replace('#','').replace(';','').replace('*','_').replace("\"",'_').replace("\'",'_').replace('|','')
