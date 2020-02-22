@@ -319,7 +319,7 @@ def clear(args):
             d = os.path.join(c, subdir)
             if os.path.exists(d): dfs_clean(d)
 
-if __name__ == '__main__':
+def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--all", action='store_true')
     parser.add_argument("--clear", action='store_true', help='remove the duplicate course file')
@@ -327,6 +327,9 @@ if __name__ == '__main__':
     parser.add_argument("--ignore", nargs='+', type=str, default=[])
     parser.add_argument("--course", nargs='+', type=str, default=[])
     args = parser.parse_args()
+    return args
+
+def main(args):
     if args.clear:
         clear(args)
         exit()
@@ -346,3 +349,6 @@ if __name__ == '__main__':
             sync_notify(c)
             sync_file(c)
             sync_hw(c)
+
+if __name__ == '__main__':
+    main(get_args())
