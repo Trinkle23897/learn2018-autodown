@@ -1,5 +1,9 @@
 # 清华大学新版网络学堂课程自动下载脚本
 
+## News
+
+支持windows双击运行了！[详情点击](https://github.com/Trinkle23897/learn2018-autodown/releases)
+
 ## Dependency
 
 python>=3.5, bs4, tqdm, requests
