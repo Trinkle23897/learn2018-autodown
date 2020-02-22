@@ -2,7 +2,7 @@
 
 ## Dependency
 
-python>=3.6, bs4, tqdm, requests
+python>=3.5, bs4, tqdm, requests
 
 ```bash
 pip3 install bs4 tqdm requests --user -U
@@ -58,3 +58,4 @@ pip3 install bs4 tqdm requests --user -U
 ## Common Issues
 
 - 卡在login：网络原因，看看pulse-secure关了没，重跑试试看
+- `500 : Internal Server Error`：请拉取最新版的脚本。网络学堂自2020/2/22开启强制https。

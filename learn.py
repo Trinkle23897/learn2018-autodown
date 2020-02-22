@@ -11,7 +11,7 @@ from tqdm import tqdm
 import urllib.request, http.cookiejar
 from bs4 import BeautifulSoup as bs
 
-url = 'http://learn.tsinghua.edu.cn'
+url = 'https://learn.tsinghua.edu.cn'
 user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
 headers = {'User-Agent': user_agent, 'Connection': 'keep-alive'}
 cookie = http.cookiejar.MozillaCookieJar()
