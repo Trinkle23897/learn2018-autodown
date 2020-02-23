@@ -151,7 +151,7 @@ def sync_notify(c):
         return
     for n in notify:
         path = os.path.join(pre, escape(n['bt']) +'.txt')
-        open(path, 'w', encoding='utf-8').write(build_notify(n))
+        open(path, 'w').write(build_notify(n))
 
 def sync_file(c):
     now = os.getcwd()
@@ -182,7 +182,7 @@ def append_hw_csv(fname, stu):
     if not os.path.exists(fname):
         f = ['学号,姓名,院系,班级,上交时间,状态,成绩,批阅老师']
     else:
-        f = open(fname, encoding='utf-8').read().split('\n')[:-1]
+        f = open(fname).read().split('\n')[:-1]
     info_str = '%s,%s,%s,%s,%s,%s,%s,%s' % (stu['xh'], stu['xm'], stu['dwmc'], stu['bm'], stu['scsjStr'], stu['zt'], stu['cj'], stu['jsm'])
     xhs = [i.split(',')[0] for i in f]
     if stu['xh'] in xhs:
@@ -190,7 +190,7 @@ def append_hw_csv(fname, stu):
         f[i] = info_str
     else:
         f.append(info_str)
-    open(fname, 'w', encoding='utf-8').write('\n'.join(f) + '\n')
+    open(fname, 'w').write('\n'.join(f) + '\n')
 
 def sync_hw(c):
     now = os.getcwd()
@@ -335,7 +335,7 @@ def main(args):
         clear(args)
         exit()
     if os.path.exists(args._pass):
-        username, password = open(args._pass, encoding='utf-8').read().split()
+        username, password = open(args._pass).read().split()
     else:
         username = input('请输入INFO账号：')
         password = getpass.getpass('请输入INFO密码：')
