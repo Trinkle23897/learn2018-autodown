@@ -9,10 +9,12 @@
 python>=3.5, bs4, tqdm, requests
 
 ```bash
-pip3 install bs4 tqdm requests --user -U
+pip3 install -r requirements.txt --user -U
 ```
 
 ## Usage
+
+`learn-stdio.py` 中显示的参数和下面是一样的。
 
 下载当前学期课程（默认）
 ```bash

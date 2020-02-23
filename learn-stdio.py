@@ -29,6 +29,7 @@ def get_args():
     args.semester = get('学期：', default=[])
     args.course = get('指定课程：', default=[])
     args.ignore = get('忽略课程：', default=[])
+    args._pass = '.pass'
     return args
 
 if __name__ == '__main__':

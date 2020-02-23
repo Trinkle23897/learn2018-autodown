@@ -326,6 +326,7 @@ def get_args():
     parser.add_argument("--semester", nargs='+', type=str, default=[])
     parser.add_argument("--ignore", nargs='+', type=str, default=[])
     parser.add_argument("--course", nargs='+', type=str, default=[])
+    parser.add_argument('-p', "--_pass", type=str, default='.pass')
     args = parser.parse_args()
     return args
 
@@ -333,11 +334,11 @@ def main(args):
     if args.clear:
         clear(args)
         exit()
-    if os.path.exists('.pass'):
-        username, password = open('.pass', encoding='utf-8').read().split()
+    if os.path.exists(args._pass):
+        username, password = open(args._pass, encoding='utf-8').read().split()
     else:
-        username = input('username: ')
-        password = getpass.getpass('password: ')
+        username = input('请输入INFO账号：')
+        password = getpass.getpass('请输入INFO密码：')
     if login(username, password):
         courses = get_courses(args)
         for c in courses:
