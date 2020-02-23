@@ -151,7 +151,7 @@ def sync_notify(c):
         return
     for n in notify:
         path = os.path.join(pre, escape(n['bt']) +'.txt')
-        open(path, 'w').write(build_notify(n))
+        open(path, 'w', encoding='utf-8').write(build_notify(n))
 
 def sync_file(c):
     now = os.getcwd()
