@@ -6,7 +6,7 @@ __copyright__ = "Copyright (C) 2019 Trinkle23897"
 __license__ = "MIT"
 __email__ = "463003665@qq.com"
 
-import os, sys, json, html, time, email, urllib, getpass, base64, hashlib, argparse, platform, subprocess
+import os, csv, sys, json, html, time, email, urllib, getpass, base64, hashlib, argparse, platform, subprocess
 from tqdm import tqdm
 import urllib.request, http.cookiejar
 from bs4 import BeautifulSoup as bs
@@ -180,17 +180,17 @@ def sync_info(c):
 
 def append_hw_csv(fname, stu):
     if not os.path.exists(fname):
-        f = ['学号,姓名,院系,班级,上交时间,状态,成绩,批阅老师']
+        f = ['学号', '姓名', '院系', '班级', '上交时间', '状态', '成绩', '批阅老师']
     else:
-        f = open(fname).read().split('\n')[:-1]
-    info_str = '%s,%s,%s,%s,%s,%s,%s,%s' % (stu['xh'], stu['xm'], stu['dwmc'], stu['bm'], stu['scsjStr'], stu['zt'], stu['cj'], stu['jsm'])
-    xhs = [i.split(',')[0] for i in f]
+        f = [i for i in csv.reader(open(fname)) if i]
+    info_str = [stu['xh'], stu['xm'], stu['dwmc'], stu['bm'], stu['scsjStr'], stu['zt'], stu['cj'], stu['jsm']]
+    xhs = [i[0] for i in f]
     if stu['xh'] in xhs:
         i = xhs.index(stu['xh'])
         f[i] = info_str
     else:
         f.append(info_str)
-    open(fname, 'w').write('\n'.join(f) + '\n')
+    csv.writer(open(fname, 'w')).writerows(f)
 
 def sync_hw(c):
     now = os.getcwd()
