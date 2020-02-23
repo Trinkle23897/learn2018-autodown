@@ -19,16 +19,16 @@ def get(help, choices=None, default=None):
 def get_args():
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
-    print('Press "Enter" for default option ...')
-    args.all = get('Sync all course [y/N]: ', choices=['Y', 'N', 'y', 'n'], default=None)
+    print('按回车选择默认选项 ...')
+    args.all = get('同步所有学期的所有课程 [y/N]：', choices=['Y', 'N', 'y', 'n'], default=None)
     if args.all in ['n', 'N']:
         args.all = None
-    args.clear = get('Remove the duplicate course file [y/N]: ', choices=['Y', 'N', 'y', 'n'], default=None)
+    args.clear = get('清空相同文件 [y/N]：', choices=['Y', 'N', 'y', 'n'], default=None)
     if args.clear in ['n', 'N']:
         args.clear = None
-    args.semester = get('Semesters: ', default=[])
-    args.course = get('Specify courses: ', default=[])
-    args.ignore = get('Ignore courses: ', default=[])
+    args.semester = get('学期：', default=[])
+    args.course = get('指定课程：', default=[])
+    args.ignore = get('忽略课程：', default=[])
     return args
 
 if __name__ == '__main__':

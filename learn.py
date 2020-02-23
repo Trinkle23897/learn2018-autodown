@@ -125,7 +125,7 @@ def download(uri, name):
     if os.path.exists(filename) and os.path.getsize(filename) or 'Connection__close' in filename:
         return
     try:
-        with TqdmUpTo(dynamic_ncols=True, unit='B', unit_scale=True, miniters=1, desc=filename) as t:
+        with TqdmUpTo(ascii=True, dynamic_ncols=True, unit='B', unit_scale=True, miniters=1, desc=filename) as t:
             urllib.request.urlretrieve(url+uri, filename=filename, reporthook=t.update_to, data=None)
     except:
         print('Could not download %s due to networking ... removing broken file' % filename)
@@ -314,7 +314,7 @@ def clear(args):
             courses = [i for i in courses if i not in args.ignore]
     courses.sort()
     for i, c in enumerate(courses):
-        print(i, c)
+        print('Sync #%d %s ...' % (i + 1, c))
         for subdir in ['课件', '作业']:
             d = os.path.join(c, subdir)
             if os.path.exists(d): dfs_clean(d)
