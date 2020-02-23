@@ -65,3 +65,4 @@ pip3 install -r requirements.txt --user -U
 
 - 卡在login：网络原因，看看pulse-secure关了没，重跑试试看
 - `500 : Internal Server Error`：请拉取最新版的脚本。网络学堂自2020/2/22开启强制https。
+- `info_xxx.csv`在Mac下打开是乱码：别用office，用mac自带的软件吧 :)

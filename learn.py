@@ -179,10 +179,10 @@ def sync_info(c):
         return
 
 def append_hw_csv(fname, stu):
-    if not os.path.exists(fname):
-        f = ['学号', '姓名', '院系', '班级', '上交时间', '状态', '成绩', '批阅老师']
-    else:
+    try:
         f = [i for i in csv.reader(open(fname)) if i]
+    except:
+        f = [['学号', '姓名', '院系', '班级', '上交时间', '状态', '成绩', '批阅老师']]
     info_str = [stu['xh'], stu['xm'], stu['dwmc'], stu['bm'], stu['scsjStr'], stu['zt'], stu['cj'], stu['jsm']]
     xhs = [i[0] for i in f]
     if stu['xh'] in xhs:
