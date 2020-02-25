@@ -18,6 +18,7 @@ cookie = http.cookiejar.MozillaCookieJar()
 handler = urllib.request.HTTPCookieProcessor(cookie)
 opener = urllib.request.build_opener(handler)
 urllib.request.install_opener(opener)
+err404 = '\r\n\r\n\r\n<script type="text/javascript">\r\n\tlocation.href="/";\r\n</script>'
 
 def open_page(uri, values={}):
     post_data = urllib.parse.urlencode(values).encode() if values else None
@@ -297,7 +298,7 @@ def dfs_clean(d):
                         info[i][1]['rm'] = 1
                     elif len(info[i][0]) > len(info[j][0]):
                         info[j][1]['rm'] = 1
-    rm = [i[0] for i in info if i[1]['rm']]
+    rm = [i[0] for i in info if i[1]['rm'] or i[1]['size'] == 0]
     if rm:
         print('rmlist:', rm)
         for f in rm:
@@ -314,7 +315,7 @@ def clear(args):
             courses = [i for i in courses if i not in args.ignore]
     courses.sort()
     for i, c in enumerate(courses):
-        print('Sync #%d %s ...' % (i + 1, c))
+        print('Checking #%d %s' % (i + 1, c))
         for subdir in ['课件', '作业']:
             d = os.path.join(c, subdir)
             if os.path.exists(d): dfs_clean(d)
@@ -327,6 +328,7 @@ def get_args():
     parser.add_argument("--ignore", nargs='+', type=str, default=[])
     parser.add_argument("--course", nargs='+', type=str, default=[])
     parser.add_argument('-p', "--_pass", type=str, default='.pass')
+    parser.add_argument('-c', "--cookie", type=str, default='', help='Netscape HTTP Cookie File')
     args = parser.parse_args()
     return args
 
@@ -334,12 +336,19 @@ def main(args):
     if args.clear:
         clear(args)
         exit()
-    if os.path.exists(args._pass):
-        username, password = open(args._pass).read().split()
+    args.login = False
+    if args.cookie:
+        cookie.load(args.cookie, ignore_discard=True, ignore_expires=True)
+        args.login = (get_page('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq') != err404)
+        print('login successfully' if args.login else 'login failed!')
     else:
-        username = input('请输入INFO账号：')
-        password = getpass.getpass('请输入INFO密码：')
-    if login(username, password):
+        if os.path.exists(args._pass):
+            username, password = open(args._pass).read().split()
+        else:
+            username = input('请输入INFO账号：')
+            password = getpass.getpass('请输入INFO密码：')
+        args.login = login(username, password)
+    if args.login:
         courses = get_courses(args)
         for c in courses:
             c['_type'] = {'0': 'teacher', '3': 'student'}[c['jslx']]

@@ -1,8 +1,17 @@
 # 清华大学新版网络学堂课程自动下载脚本
 
-## News
+## Features
 
-支持windows双击运行了！[详情点击](https://github.com/Trinkle23897/learn2018-autodown/releases)
+0. Windows支持双击运行（[详情点击](https://github.com/Trinkle23897/learn2018-autodown/releases)），Mac和Linux可在安装完python3和依赖之后直接运行脚本
+1. 下载所有课程公告
+2. 下载所有课件
+3. 下载所有作业文件及其批阅情况
+4. 下载所有课程讨论
+5. 下载课程信息
+6. 增量更新
+7. 可选下载课程
+8. 下载助教课程
+9. 可使用cookie登录
 
 ## Dependency
 
@@ -15,6 +24,8 @@ pip3 install -r requirements.txt --user -U
 ## Usage
 
 `learn-stdio.py` 中显示的参数和下面是一样的。
+
+### 下载选项
 
 下载当前学期课程（默认）
 ```bash
@@ -46,20 +57,30 @@ pip3 install -r requirements.txt --user -U
 ./learn.py --semester 2017-2018-1 2017-2018-2 2017-2018-3 --ignore 数据结构 "实验室科研探究(2)" 中国近现代史纲要
 ```
 
-懒得每次输入info账号密码？创建文件`.pass`，写入info账号和密码之后可以自动登录。
-
 如果想跳过正在下载的某个文件，按Ctrl+C即可。
 
-## Features
+### 登录选项（learn-stdio中禁用）
 
-0. 下载所有课程公告
-1. 下载所有课件
-2. 下载所有作业文件及其批阅情况
-3. 下载所有课程讨论
-4. 下载课程信息
-5. 增量更新
-6. 可选下载课程
-7. 下载助教课程
+使用Cookie登录而不是输入info密码：
+
+```bash
+./leearn.py --cookie your_cookie_filename
+```
+
+其中cookie文件格式可参考 `example_cookie.txt`。
+
+懒得每次输入info账号密码？创建文件`.pass`，写入info账号和密码之后可以自动登录，或者是：
+
+```bash
+./learn.py --_pass your_info_file
+```
+
+其中文件格式为 
+
+```bash
+info账号
+info密码
+```
 
 ## Common Issues
 

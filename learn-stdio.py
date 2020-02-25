@@ -30,6 +30,7 @@ def get_args():
     args.course = get('指定课程：', default=[])
     args.ignore = get('忽略课程：', default=[])
     args._pass = '.pass'
+    args.cookie = ''
     return args
 
 if __name__ == '__main__':
