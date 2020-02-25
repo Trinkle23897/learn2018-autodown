@@ -2,7 +2,7 @@
 
 ## Features
 
-0. Windows支持双击运行（[详情点击](https://github.com/Trinkle23897/learn2018-autodown/releases)），Mac和Linux可在安装完python3和依赖之后直接运行脚本
+0. 跨平台支持：Windows/Mac/Linux支持双击运行（[详情点击](https://github.com/Trinkle23897/learn2018-autodown/releases)）
 1. 下载所有课程公告
 2. 下载所有课件
 3. 下载所有作业文件及其批阅情况
@@ -61,14 +61,6 @@ pip3 install -r requirements.txt --user -U
 
 ### 登录选项（learn-stdio中禁用）
 
-使用Cookie登录而不是输入info密码：
-
-```bash
-./leearn.py --cookie your_cookie_filename
-```
-
-其中cookie文件格式可参考 `example_cookie.txt`。
-
 懒得每次输入info账号密码？创建文件`.pass`，写入info账号和密码之后可以自动登录，或者是：
 
 ```bash
@@ -81,6 +73,14 @@ pip3 install -r requirements.txt --user -U
 info账号
 info密码
 ```
+
+使用Cookie登录而不是输入info密码：
+
+```bash
+./learn.py --cookie your_cookie_filename
+```
+
+其中cookie文件格式可参考 `example_cookie.txt`。
 
 ## Common Issues
 

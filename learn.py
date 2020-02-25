@@ -129,7 +129,7 @@ def download(uri, name):
         with TqdmUpTo(ascii=True, dynamic_ncols=True, unit='B', unit_scale=True, miniters=1, desc=filename) as t:
             urllib.request.urlretrieve(url+uri, filename=filename, reporthook=t.update_to, data=None)
     except:
-        print('Could not download %s due to networking ... removing broken file' % filename)
+        print('Could not download file %s ... removing broken file' % filename)
         if os.path.exists(filename):
             os.remove(filename)
         return
@@ -213,10 +213,13 @@ def sync_hw(c):
         if c['_type'] == 'student':
             append_hw_csv(os.path.join(path, 'info_%s.csv' % c['wlkcid']), hw)
             page = bs(get_page('/f/wlxt/kczy/zy/student/viewCj?wlkcid=%s&zyid=%s&xszyid=%s' % (hw['wlkcid'], hw['zyid'], hw['xszyid'])), 'html.parser')
-            files = page.findAll(class_='wdhere')
-            for f in files:
+            files = page.findAll(class_='fujian')
+            for i, f in enumerate(files):
+                if len(f.findAll('a')) == 0:
+                    continue
                 os.chdir(path) # to avoid filename too long
-                download('/b/wlxt/kczy/zy/%s/downloadFile/%s/%s' % (c['_type'], hw['wlkcid'], f.findAll('a')[-1].attrs['onclick'].split("ZyFile('")[-1][:-2]), name=hw['xh']+'_'+f.findAll('a')[0].text)
+                name = (hw['xh']+'_'+f.findAll('a')[0].text) if i >= 2 else f.findAll('a')[0].text
+                download('/b/wlxt/kczy/zy/%s/downloadFile/%s/%s' % (c['_type'], hw['wlkcid'], f.findAll('a')[-1].attrs['onclick'].split("ZyFile('")[-1][:-2]), name=name)
                 os.chdir(now)
         else:
             print(hw['bt'])
