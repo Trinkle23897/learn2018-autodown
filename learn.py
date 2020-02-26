@@ -6,7 +6,7 @@ __copyright__ = "Copyright (C) 2019 Trinkle23897"
 __license__ = "MIT"
 __email__ = "463003665@qq.com"
 
-import os, csv, sys, json, html, time, email, urllib, getpass, base64, hashlib, argparse, platform, subprocess
+import os, csv, sys, json, html, time, urllib, getpass, base64, hashlib, argparse, platform, subprocess
 from tqdm import tqdm
 import urllib.request, http.cookiejar
 from bs4 import BeautifulSoup as bs
@@ -77,34 +77,21 @@ def get_courses(args):
     courses = []
     for q in query_list:
         try:
-            courses += get_json('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/pageList', {'aoData': [
-                {"name": "xnxq", "value": q},
-                {"name": "jslx", "value": "3"} # students
-            ]})['object']['aaData']
-            courses += get_json('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/pageList', {'aoData': [
-                {"name": "xnxq", "value": q},
-                {"name": "jslx", "value": "0"} # TA
-            ]})['object']['aaData']
+            c_stu = get_json('/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId/' + q)['resultList']
         except:
-            continue
-    if now in query_list: # a bug in wlxt
+            c_stu = []
         try:
-            c_stu, c_ta = [], []
-            c_stu = get_json('/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId/' + query_list[-1])['resultList']
-            c_ta = get_json('/b/kc/v_wlkc_kcb/queryAsorCoCourseList/%s/0' % query_list[-1])['resultList']
+            c_ta = get_json('/b/kc/v_wlkc_kcb/queryAsorCoCourseList/%s/0' % q)['resultList']
         except:
-            pass
-        finally:
-            current_courses = []
-            for c in c_stu:
-                c['jslx'] = '3'
-                current_courses.append(c)
-            for c in c_ta:
-                c['jslx'] = '0'
-                current_courses.append(c)
-            wlkcids = [c['wlkcid'] for c in courses]
-            current_courses = [c for c in current_courses if c['wlkcid'] not in wlkcids]
-            courses += current_courses
+            c_ta = []
+        current_courses = []
+        for c in c_stu:
+            c['jslx'] = '3'
+            current_courses.append(c)
+        for c in c_ta:
+            c['jslx'] = '0'
+            current_courses.append(c)
+        courses += current_courses
     escape_c = []
     for c in courses:
         c['kcm'] = escape(c['kcm']).replace(' ', '').replace('_', '').replace('（', '(').replace('）', ')')
@@ -218,7 +205,9 @@ def sync_hw(c):
                 if len(f.findAll('a')) == 0:
                     continue
                 os.chdir(path) # to avoid filename too long
-                name = (hw['xh']+'_'+f.findAll('a')[0].text) if i >= 2 else f.findAll('a')[0].text
+                name = f.findAll('a')[0].text
+                if i >= 2 and not name.startswith(hw['xh']):
+                    name = hw['xh'] + '_' + name
                 download('/b/wlxt/kczy/zy/%s/downloadFile/%s/%s' % (c['_type'], hw['wlkcid'], f.findAll('a')[-1].attrs['onclick'].split("ZyFile('")[-1][:-2]), name=name)
                 os.chdir(now)
         else:
@@ -239,7 +228,9 @@ def sync_hw(c):
                     except:
                         id = f.findAll('a')[-1].attrs['onclick'].split("'")[1]
                         name = f.findAll('a')[0].text
-                    download('/b/wlxt/kczy/xszy/teacher/downloadFile/%s/%s' % (stu['wlkcid'], id), name=stu['xh']+'_'+name)
+                    if not name.startswith(stu['xh']):
+                        name = stu['xh'] + '_' + name
+                    download('/b/wlxt/kczy/xszy/teacher/downloadFile/%s/%s' % (stu['wlkcid'], id), name=name)
                     os.chdir(now)
             stus = get_json('/b/wlxt/kczy/xszy/teacher/getUndoInfo', data)['object']['aaData']
             for stu in stus:
