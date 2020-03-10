@@ -35,13 +35,15 @@ def get_page(uri, values={}):
         return data.read().decode()
 
 def get_json(uri, values={}):
-    while True:
+    for i in range(10):
         try:
             page = get_page(uri, values)
             result = json.loads(page)
             return result
         except json.JSONDecodeError:
-            print('JSON Decode Error, reconnecting... %s' % page, end='\r')
+            print('\rJSON Decode Error, reconnecting (%d) ...' % (i + 1), end='')
+            time.sleep(5)
+    return {}
 
 def escape(s):
     return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?','.').replace('/','_').replace('\'','_').replace('<','').replace('>','').replace('#','').replace(';','').replace('*','_').replace("\"",'_').replace("\'",'_').replace('|','')
@@ -93,13 +95,16 @@ def get_courses(args):
             current_courses.append(c)
         courses += current_courses
     escape_c = []
+    escape_course_fn = lambda c: escape(c).replace(' ', '').replace('_', '').replace('（', '(').replace('）', ')')
     for c in courses:
-        c['kcm'] = escape(c['kcm']).replace(' ', '').replace('_', '').replace('（', '(').replace('）', ')')
+        c['kcm'] = escape_course_fn(c['kcm'])
         escape_c.append(c)
     courses = escape_c
     if args.course:
+        args.course = [escape_course_fn(c) for c in args.course]
         courses = [c for c in courses if c['kcm'] in args.course]
     if args.ignore:
+        args.ignore = [escape_course_fn(c) for c in args.ignore]
         courses = [c for c in courses if c['kcm'] not in args.ignore]
     return courses
 
@@ -238,8 +243,7 @@ def sync_hw(c):
                 append_hw_csv(os.path.join(path, 'info_%s.csv' % c['wlkcid']), stu)
 
 def build_discuss(s):
-    disc = '课程：%s\n内容：%s\n学号：%s\n姓名：%s\n发布时间:%s\n最后回复：%s\n回复时间：%s\n' % (s['kcm'], s['bt'], s['fbr'], s['fbrxm'], s['fbsj'], s['zhhfrxm'], s['zhhfsj'])
-    return disc
+    return '课程：%s\n内容：%s\n学号：%s\n姓名：%s\n发布时间:%s\n最后回复：%s\n回复时间：%s\n' % (s['kcm'], s['bt'], s['fbr'], s['fbrxm'], s['fbsj'], s['zhhfrxm'], s['zhhfsj'])
 
 def sync_discuss(c):
     pre = os.path.join(c['kcm'], '讨论')
