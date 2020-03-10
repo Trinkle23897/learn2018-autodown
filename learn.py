@@ -149,11 +149,12 @@ def sync_file(c):
         files = get_json('/b/wlxt/kj/wlkc_kjxxb/student/kjxxbByWlkcidAndSizeForStudent?wlkcid=%s&size=0' % c['wlkcid'])['object']
     else:
         files = get_json('/b/wlxt/kj/v_kjxxb_wjwjb/teacher/queryByWlkcid?wlkcid=%s&size=0' % c['wlkcid'])['object']['resultsList']
-    for f in files:
-        os.chdir(pre)
-        name = f['bt']+'.'+f['wjlx'] if f['wjlx'] else f['bt']
-        download('/b/wlxt/kj/wlkc_kjxxb/%s/downloadFile?sfgk=0&wjid=%s' % (c['_type'], f['wjid']), name=name)
-        os.chdir(now)
+    if files:
+        for f in files:
+            os.chdir(pre)
+            name = f['bt']+'.'+f['wjlx'] if f['wjlx'] else f['bt']
+            download('/b/wlxt/kj/wlkc_kjxxb/%s/downloadFile?sfgk=0&wjid=%s' % (c['_type'], f['wjid']), name=name)
+            os.chdir(now)
 
 def sync_info(c):
     pre = os.path.join(c['kcm'], '课程信息.txt')
