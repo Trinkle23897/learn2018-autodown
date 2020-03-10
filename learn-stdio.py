@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import argparse
+import time, argparse
 from learn import main
 
 def get(help, choices=None, default=None):
@@ -34,4 +34,8 @@ def get_args():
     return args
 
 if __name__ == '__main__':
+    t = time.time()
     main(get_args())
+    t = time.time() - t
+    print('耗时: %02d:%02d:%02.0f' % (t // 3600, (t % 3600) // 60, t % 60))
+    input('请按任意键退出')
