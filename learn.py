@@ -6,7 +6,7 @@ __copyright__ = "Copyright (C) 2019 Trinkle23897"
 __license__ = "MIT"
 __email__ = "463003665@qq.com"
 
-import os, csv, sys, json, html, time, urllib, getpass, base64, hashlib, argparse, platform, subprocess
+import os, csv, json, html, urllib, getpass, base64, hashlib, argparse, platform, subprocess
 from tqdm import tqdm
 import urllib.request, http.cookiejar
 from bs4 import BeautifulSoup as bs
@@ -20,6 +20,7 @@ opener = urllib.request.build_opener(handler)
 urllib.request.install_opener(opener)
 err404 = '\r\n\r\n\r\n<script type="text/javascript">\r\n\tlocation.href="/";\r\n</script>'
 
+
 def open_page(uri, values={}):
     post_data = urllib.parse.urlencode(values).encode() if values else None
     request = urllib.request.Request(uri if uri.startswith('http') else url + uri, post_data, headers)
@@ -29,24 +30,25 @@ def open_page(uri, values={}):
     except urllib.error.URLError as e:
         print(uri, e.code, ':', e.reason)
 
+
 def get_page(uri, values={}):
     data = open_page(uri, values)
     if data:
         return data.read().decode()
 
+
 def get_json(uri, values={}):
-    for i in range(10):
-        try:
-            page = get_page(uri, values)
-            result = json.loads(page)
-            return result
-        except json.JSONDecodeError:
-            print('\rJSON Decode Error, reconnecting (%d) ...' % (i + 1), end='')
-            time.sleep(5)
-    return {}
+    try:
+        page = get_page(uri, values)
+        result = json.loads(page)
+        return result
+    except:
+        return {}
+
 
 def escape(s):
-    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?','.').replace('/','_').replace('\'','_').replace('<','').replace('>','').replace('#','').replace(';','').replace('*','_').replace("\"",'_').replace("\'",'_').replace('|','')
+    return html.unescape(s).replace(os.path.sep, '、').replace(':', '_').replace(' ', '_').replace('\t', '').replace('?', '.').replace('/', '_').replace('\'', '_').replace('<', '').replace('>', '').replace('#', '').replace(';', '').replace('*', '_').replace("\"", '_').replace("\'", '_').replace('|', '')
+
 
 def login(username, password):
     login_uri = 'https://id.tsinghua.edu.cn/do/off/ui/auth/login/post/bb5df85216504820be7bba2b0ae1535b/0?/login.do'
@@ -58,11 +60,12 @@ def login(username, password):
         get_page(get_page(info.split('replace("')[-1].split('");\n')[0]).split('location="')[1].split('";\r\n')[0])
     return successful
 
+
 def get_courses(args):
     try:
         now = get_json('/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester')['result']['xnxq']
         if args.all or args.course or args.semester:
-            query_list = [x for x in get_json('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq') if x != None]
+            query_list = [x for x in get_json('/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq') if x is not None]
             query_list.sort()
             if args.semester:
                 query_list_ = [q for q in query_list if q in args.semester]
@@ -71,7 +74,6 @@ def get_courses(args):
                     return []
                 query_list = query_list_
         else:
-            current = True
             query_list = [now]
     except:
         print('您被退学了！')
@@ -95,7 +97,10 @@ def get_courses(args):
             current_courses.append(c)
         courses += current_courses
     escape_c = []
-    escape_course_fn = lambda c: escape(c).replace(' ', '').replace('_', '').replace('（', '(').replace('）', ')')
+
+    def escape_course_fn(c):
+        return escape(c).replace(' ', '').replace('_', '').replace('（', '(').replace('）', ')')
+
     for c in courses:
         c['kcm'] = escape_course_fn(c['kcm'])
         escape_c.append(c)
@@ -108,10 +113,13 @@ def get_courses(args):
         courses = [c for c in courses if c['kcm'] not in args.ignore]
     return courses
 
+
 class TqdmUpTo(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
-        if tsize is not None: self.total = tsize
+        if tsize is not None:
+            self.total = tsize
         self.update(b * bsize - self.n)
+
 
 def download(uri, name):
     filename = escape(name)
@@ -119,21 +127,24 @@ def download(uri, name):
         return
     try:
         with TqdmUpTo(ascii=True, dynamic_ncols=True, unit='B', unit_scale=True, miniters=1, desc=filename) as t:
-            urllib.request.urlretrieve(url+uri, filename=filename, reporthook=t.update_to, data=None)
+            urllib.request.urlretrieve(url + uri, filename=filename, reporthook=t.update_to, data=None)
     except:
         print('Could not download file %s ... removing broken file' % filename)
         if os.path.exists(filename):
             os.remove(filename)
         return
 
+
 def build_notify(s):
     tp = bs(base64.b64decode(s['ggnr']).decode('utf-8'), 'html.parser').text if s['ggnr'] else ''
     st = '题目: %s\n发布人: %s\n发布时间: %s\n内容: %s\n' % (s['bt'], s['fbr'], s['fbsjStr'], tp)
     return st
 
+
 def sync_notify(c):
     pre = os.path.join(c['kcm'], '公告')
-    if not os.path.exists(pre): os.makedirs(pre)
+    if not os.path.exists(pre):
+        os.makedirs(pre)
     try:
         data = {'aoData': [{"name": "wlkcid", "value": c['wlkcid']}]}
         if c['_type'] == 'student':
@@ -143,13 +154,15 @@ def sync_notify(c):
     except:
         return
     for n in notify:
-        path = os.path.join(pre, escape(n['bt']) +'.txt')
+        path = os.path.join(pre, escape(n['bt']) + '.txt')
         open(path, 'w', encoding='utf-8').write(build_notify(n))
+
 
 def sync_file(c):
     now = os.getcwd()
     pre = os.path.join(c['kcm'], '课件')
-    if not os.path.exists(pre): os.makedirs(pre)
+    if not os.path.exists(pre):
+        os.makedirs(pre)
     if c['_type'] == 'student':
         files = get_json('/b/wlxt/kj/wlkc_kjxxb/student/kjxxbByWlkcidAndSizeForStudent?wlkcid=%s&size=0' % c['wlkcid'])['object']
     else:
@@ -157,9 +170,10 @@ def sync_file(c):
     if files:
         for f in files:
             os.chdir(pre)
-            name = f['bt']+'.'+f['wjlx'] if f['wjlx'] else f['bt']
+            name = f['bt'] + '.' + f['wjlx'] if f['wjlx'] else f['bt']
             download('/b/wlxt/kj/wlkc_kjxxb/%s/downloadFile?sfgk=0&wjid=%s' % (c['_type'], f['wjid']), name=name)
             os.chdir(now)
+
 
 def sync_info(c):
     pre = os.path.join(c['kcm'], '课程信息.txt')
@@ -171,6 +185,7 @@ def sync_info(c):
         open(pre, 'w').write('\n'.join(bs(html, 'html.parser').find(class_='course-w').text.split()))
     except:
         return
+
 
 def append_hw_csv(fname, stu):
     try:
@@ -186,10 +201,12 @@ def append_hw_csv(fname, stu):
         f.append(info_str)
     csv.writer(open(fname, 'w')).writerows(f)
 
+
 def sync_hw(c):
     now = os.getcwd()
     pre = os.path.join(c['kcm'], '作业')
-    if not os.path.exists(pre): os.makedirs(pre)
+    if not os.path.exists(pre):
+        os.makedirs(pre)
     data = {'aoData': [{"name": "wlkcid", "value": c['wlkcid']}]}
     if c['_type'] == 'student':
         hws = []
@@ -202,7 +219,8 @@ def sync_hw(c):
         hws = get_json('/b/wlxt/kczy/zy/teacher/pageList', data)['object']['aaData']
     for hw in hws:
         path = os.path.join(pre, escape(hw['bt']))
-        if not os.path.exists(path): os.makedirs(path)
+        if not os.path.exists(path):
+            os.makedirs(path)
         if c['_type'] == 'student':
             append_hw_csv(os.path.join(path, 'info_%s.csv' % c['wlkcid']), hw)
             page = bs(get_page('/f/wlxt/kczy/zy/student/viewCj?wlkcid=%s&zyid=%s&xszyid=%s' % (hw['wlkcid'], hw['zyid'], hw['xszyid'])), 'html.parser')
@@ -210,7 +228,7 @@ def sync_hw(c):
             for i, f in enumerate(files):
                 if len(f.findAll('a')) == 0:
                     continue
-                os.chdir(path) # to avoid filename too long
+                os.chdir(path)  # to avoid filename too long
                 name = f.findAll('a')[0].text
                 if i >= 2 and not name.startswith(hw['xh']):
                     name = hw['xh'] + '_' + name
@@ -227,13 +245,16 @@ def sync_hw(c):
                 for f in files:
                     if f.text == '\n':
                         continue
-                    os.chdir(path) # to avoid filename too long
+                    os.chdir(path)  # to avoid filename too long
                     try:
                         id = f.findAll('span')[0].attrs['onclick'].split("'")[1]
                         name = f.findAll('span')[0].text
                     except:
-                        id = f.findAll('a')[-1].attrs['onclick'].split("'")[1]
-                        name = f.findAll('a')[0].text
+                        try:
+                            id = f.findAll('a')[-1].attrs['onclick'].split("'")[1]
+                            name = f.findAll('a')[0].text
+                        except:  # another error
+                            continue
                     if not name.startswith(stu['xh']):
                         name = stu['xh'] + '_' + name
                     download('/b/wlxt/kczy/xszy/teacher/downloadFile/%s/%s' % (stu['wlkcid'], id), name=name)
@@ -242,12 +263,15 @@ def sync_hw(c):
             for stu in stus:
                 append_hw_csv(os.path.join(path, 'info_%s.csv' % c['wlkcid']), stu)
 
+
 def build_discuss(s):
     return '课程：%s\n内容：%s\n学号：%s\n姓名：%s\n发布时间:%s\n最后回复：%s\n回复时间：%s\n' % (s['kcm'], s['bt'], s['fbr'], s['fbrxm'], s['fbsj'], s['zhhfrxm'], s['zhhfsj'])
 
+
 def sync_discuss(c):
     pre = os.path.join(c['kcm'], '讨论')
-    if not os.path.exists(pre): os.makedirs(pre)
+    if not os.path.exists(pre):
+        os.makedirs(pre)
     try:
         disc = get_json('/b/wlxt/bbs/bbs_tltb/%s/kctlList?wlkcid=%s' % (c['_type'], c['wlkcid']))['object']['resultsList']
     except:
@@ -262,6 +286,7 @@ def sync_discuss(c):
         except:
             pass
 
+
 def gethash(fname):
     if platform.system() == 'Linux':
         return subprocess.check_output(['md5sum', fname]).decode().split()[0]
@@ -270,6 +295,7 @@ def gethash(fname):
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
+
 
 def dfs_clean(d):
     subdirs = [os.path.join(d, i) for i in os.listdir(d) if os.path.isdir(os.path.join(d, i))]
@@ -303,6 +329,7 @@ def dfs_clean(d):
         for f in rm:
             os.remove(f)
 
+
 def clear(args):
     courses = [i for i in os.listdir('.') if os.path.isdir(i) and not i.startswith('.')]
     if args.all:
@@ -317,7 +344,9 @@ def clear(args):
         print('Checking #%d %s' % (i + 1, c))
         for subdir in ['课件', '作业']:
             d = os.path.join(c, subdir)
-            if os.path.exists(d): dfs_clean(d)
+            if os.path.exists(d):
+                dfs_clean(d)
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -330,6 +359,7 @@ def get_args():
     parser.add_argument('-c', "--cookie", type=str, default='', help='Netscape HTTP Cookie File')
     args = parser.parse_args()
     return args
+
 
 def main(args):
     if args.clear:
@@ -352,12 +382,14 @@ def main(args):
         for c in courses:
             c['_type'] = {'0': 'teacher', '3': 'student'}[c['jslx']]
             print('Sync ' + c['xnxq'] + ' ' + c['kcm'])
-            if not os.path.exists(c['kcm']): os.makedirs(c['kcm'])
+            if not os.path.exists(c['kcm']):
+                os.makedirs(c['kcm'])
             sync_info(c)
             sync_discuss(c)
             sync_notify(c)
             sync_file(c)
             sync_hw(c)
+
 
 if __name__ == '__main__':
     main(get_args())
