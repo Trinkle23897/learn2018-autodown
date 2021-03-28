@@ -166,7 +166,10 @@ def sync_file(c):
     if c['_type'] == 'student':
         files = get_json('/b/wlxt/kj/wlkc_kjxxb/student/kjxxbByWlkcidAndSizeForStudent?wlkcid=%s&size=0' % c['wlkcid'])['object']
     else:
-        files = get_json('/b/wlxt/kj/v_kjxxb_wjwjb/teacher/queryByWlkcid?wlkcid=%s&size=0' % c['wlkcid'])['object']['resultsList']
+        try:
+            files = get_json('/b/wlxt/kj/v_kjxxb_wjwjb/teacher/queryByWlkcid?wlkcid=%s&size=0' % c['wlkcid'])['object']['resultsList']
+        except:  # None
+            return
     if files:
         for f in files:
             os.chdir(pre)
