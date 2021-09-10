@@ -21,6 +21,10 @@ urllib.request.install_opener(opener)
 err404 = '\r\n\r\n\r\n<script type="text/javascript">\r\n\tlocation.href="/";\r\n</script>'
 
 
+def get_xsrf_token():
+    cookie_obj = cookie._cookies.get('learn.tsinghua.edu.cn', dict()).get('/', dict()).get('XSRF-TOKEN', None)
+    return cookie_obj.value if cookie_obj else None
+
 def open_page(uri, values={}):
     post_data = urllib.parse.urlencode(values).encode() if values else None
     request = urllib.request.Request(uri if uri.startswith('http') else url + uri, post_data, headers)
@@ -38,6 +42,12 @@ def get_page(uri, values={}):
 
 
 def get_json(uri, values={}):
+    xsrf_token = get_xsrf_token()
+    if xsrf_token:
+        if '?' not in uri:
+            uri = uri + f'?_csrf={xsrf_token}'
+        else:
+            uri = uri + f'&_csrf={xsrf_token}'
     try:
         page = get_page(uri, values)
         result = json.loads(page)
