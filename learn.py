@@ -11,6 +11,10 @@ from tqdm import tqdm
 import urllib.request, http.cookiejar
 from bs4 import BeautifulSoup as bs
 
+import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
+
 url = 'https://learn.tsinghua.edu.cn'
 user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
 headers = {'User-Agent': user_agent, 'Connection': 'keep-alive'}
@@ -28,6 +32,7 @@ def get_xsrf_token():
 def open_page(uri, values={}):
     post_data = urllib.parse.urlencode(values).encode() if values else None
     request = urllib.request.Request(uri if uri.startswith('http') else url + uri, post_data, headers)
+    # print(uri if uri.startswith('http') else url + uri, post_data, headers)
     try:
         response = opener.open(request)
         return response
@@ -147,7 +152,7 @@ def download(uri, name):
 
 def build_notify(s):
     tp = bs(base64.b64decode(s['ggnr']).decode('utf-8'), 'html.parser').text if s['ggnr'] else ''
-    st = '题目: %s\n发布人: %s\n发布时间: %s\n内容: %s\n' % (s['bt'], s['fbr'], s['fbsjStr'], tp)
+    st = '题目: %s\n发布人: %s\n发布时间: %s\n\n内容: %s\n' % (s['bt'], s['fbr'], s['fbsjStr'], tp)
     return st
 
 
@@ -159,13 +164,29 @@ def sync_notify(c):
         data = {'aoData': [{"name": "wlkcid", "value": c['wlkcid']}]}
         if c['_type'] == 'student':
             notify = get_json('/b/wlxt/kcgg/wlkc_ggb/student/pageListXs', data)['object']['aaData']
+            # print(notify)
+            # os.system("pause")
         else:
             notify = get_json('/b/wlxt/kcgg/wlkc_ggb/teacher/pageList', data)['object']['aaData']
     except:
         return
     for n in notify:
-        path = os.path.join(pre, escape(n['bt']) + '.txt')
+        if not os.path.exists(os.path.join(pre, escape(n['bt']))):
+            os.makedirs(os.path.join(pre, escape(n['bt'])))
+        path = os.path.join(os.path.join(pre, escape(n['bt'])), escape(n['bt']) + '.txt')
         open(path, 'w', encoding='utf-8').write(build_notify(n))
+
+        if n['fjmc'] is not None:
+            html = get_page('/f/wlxt/kcgg/wlkc_ggb/%s/beforeViewXs?wlkcid=%s&id=%s' % (c['_type'], n['wlkcid'], n['ggid']))
+            soup = bs(html, 'html.parser')
+
+            link = soup.find('a', class_='ml-10')
+
+            now = os.getcwd()
+            os.chdir(os.path.join(pre, escape(n['bt'])))
+            name = n['fjmc']
+            download(link['href'], name=name)
+            os.chdir(now)
 
 
 def sync_file(c):
@@ -173,19 +194,41 @@ def sync_file(c):
     pre = os.path.join(c['kcm'], '课件')
     if not os.path.exists(pre):
         os.makedirs(pre)
+
     if c['_type'] == 'student':
         files = get_json('/b/wlxt/kj/wlkc_kjxxb/student/kjxxbByWlkcidAndSizeForStudent?wlkcid=%s&size=0' % c['wlkcid'])['object']
+        # print(files)
+        # os.system("pause")
     else:
         try:
             files = get_json('/b/wlxt/kj/v_kjxxb_wjwjb/teacher/queryByWlkcid?wlkcid=%s&size=0' % c['wlkcid'])['object']['resultsList']
         except:  # None
             return
-    if files:
-        for f in files:
-            os.chdir(pre)
-            name = f['bt'] + '.' + f['wjlx'] if f['wjlx'] else f['bt']
-            download('/b/wlxt/kj/wlkc_kjxxb/%s/downloadFile?sfgk=0&wjid=%s' % (c['_type'], f['wjid']), name=name)
-            os.chdir(now)
+
+    rows = json.loads(get_page(f'/b/wlxt/kj/wlkc_kjflb/{c["_type"]}/pageList?_csrf={get_xsrf_token()}&wlkcid={c["wlkcid"]}'))['object']['rows']
+
+    os.chdir(pre)
+    for r in rows:
+        row_files = get_json(f'/b/wlxt/kj/wlkc_kjxxb/{c["_type"]}/kjxxb/{c["wlkcid"]}/{r["kjflid"]}')['object']
+        if not os.path.exists(escape(r['bt'])):
+            os.makedirs(escape(r['bt']))
+        rnow = os.getcwd()
+        os.chdir(escape(r['bt']))
+        for rf in row_files:
+            flag = False
+            for f in files:
+                if rf[7] == f['wjid']:
+                    flag = True
+                    wjlx = f['wjlx']
+                    break
+            if flag:
+                name = rf[1] + '.' + wjlx if wjlx else rf[1]
+                download(f'/b/wlxt/kj/wlkc_kjxxb/{c["_type"]}/downloadFile?sfgk=0&wjid={rf[7]}', name=name)
+            else:
+                print(f'文件{rf[1]}出错')
+        os.chdir(rnow)
+
+    os.chdir(now)
 
 
 def sync_info(c):
@@ -391,17 +434,24 @@ def main(args):
             password = getpass.getpass('请输入INFO密码：')
         args.login = login(username, password)
     if args.login:
+        if not os.path.exists('./download'):
+            os.makedirs('./download')
+        os.chdir('./download')
+
         courses = get_courses(args)
         for c in courses:
+            now = os.getcwd()
             c['_type'] = {'0': 'teacher', '3': 'student'}[c['jslx']]
             print('Sync ' + c['xnxq'] + ' ' + c['kcm'])
-            if not os.path.exists(c['kcm']):
-                os.makedirs(c['kcm'])
+            if not os.path.exists(os.path.join(c['xnxq'], c['kcm'])):
+                os.makedirs(os.path.join(c['xnxq'], c['kcm']))
+            os.chdir(c['xnxq'])
             sync_info(c)
             sync_discuss(c)
             sync_notify(c)
             sync_file(c)
             sync_hw(c)
+            os.chdir(now)
 
 
 if __name__ == '__main__':
