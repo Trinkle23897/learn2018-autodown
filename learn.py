@@ -429,24 +429,18 @@ def main(args):
             password = getpass.getpass('请输入INFO密码：')
         args.login = login(username, password)
     if args.login:
-        if not os.path.exists('./download'):
-            os.makedirs('./download')
-        os.chdir('./download')
-
         courses = get_courses(args)
         for c in courses:
             now = os.getcwd()
             c['_type'] = {'0': 'teacher', '3': 'student'}[c['jslx']]
             print('Sync ' + c['xnxq'] + ' ' + c['kcm'])
-            if not os.path.exists(os.path.join(c['xnxq'], c['kcm'])):
-                os.makedirs(os.path.join(c['xnxq'], c['kcm']))
-            os.chdir(c['xnxq'])
+            if not os.path.exists(c['kcm'])):
+                os.makedirs(c['kcm'])
             sync_info(c)
             sync_discuss(c)
             sync_notify(c)
             sync_file(c)
             sync_hw(c)
-            os.chdir(now)
 
 
 if __name__ == '__main__':
