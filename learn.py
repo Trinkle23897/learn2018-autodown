@@ -431,10 +431,9 @@ def main(args):
     if args.login:
         courses = get_courses(args)
         for c in courses:
-            now = os.getcwd()
             c['_type'] = {'0': 'teacher', '3': 'student'}[c['jslx']]
             print('Sync ' + c['xnxq'] + ' ' + c['kcm'])
-            if not os.path.exists(c['kcm'])):
+            if not os.path.exists(c['kcm']):
                 os.makedirs(c['kcm'])
             sync_info(c)
             sync_discuss(c)
