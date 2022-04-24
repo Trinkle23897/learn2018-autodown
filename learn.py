@@ -32,7 +32,6 @@ def get_xsrf_token():
 def open_page(uri, values={}):
     post_data = urllib.parse.urlencode(values).encode() if values else None
     request = urllib.request.Request(uri if uri.startswith('http') else url + uri, post_data, headers)
-    # print(uri if uri.startswith('http') else url + uri, post_data, headers)
     try:
         response = opener.open(request)
         return response
@@ -164,8 +163,6 @@ def sync_notify(c):
         data = {'aoData': [{"name": "wlkcid", "value": c['wlkcid']}]}
         if c['_type'] == 'student':
             notify = get_json('/b/wlxt/kcgg/wlkc_ggb/student/pageListXs', data)['object']['aaData']
-            # print(notify)
-            # os.system("pause")
         else:
             notify = get_json('/b/wlxt/kcgg/wlkc_ggb/teacher/pageList', data)['object']['aaData']
     except:
@@ -197,8 +194,6 @@ def sync_file(c):
 
     if c['_type'] == 'student':
         files = get_json('/b/wlxt/kj/wlkc_kjxxb/student/kjxxbByWlkcidAndSizeForStudent?wlkcid=%s&size=0' % c['wlkcid'])['object']
-        # print(files)
-        # os.system("pause")
     else:
         try:
             files = get_json('/b/wlxt/kj/v_kjxxb_wjwjb/teacher/queryByWlkcid?wlkcid=%s&size=0' % c['wlkcid'])['object']['resultsList']
