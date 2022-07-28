@@ -312,10 +312,10 @@ def sync_hw(c):
                 append_hw_csv(os.path.join(path, 'info_%s.csv' % c['wlkcid']), stu)
                 page = bs(get_page('/f/wlxt/kczy/xszy/teacher/beforePiYue?wlkcid=%s&xszyid=%s' % (stu['wlkcid'], stu['xszyid'])), 'html.parser')
                 files = page.findAll(class_='wdhere')
+                os.chdir(path)  # to avoid filename too long
                 for f in files:
                     if f.text == '\n':
                         continue
-                    os.chdir(path)  # to avoid filename too long
                     try:
                         id = f.findAll('span')[0].attrs['onclick'].split("'")[1]
                         name = f.findAll('span')[0].text
@@ -328,7 +328,7 @@ def sync_hw(c):
                     if not name.startswith(stu['xh']):
                         name = stu['xh'] + '_' + name
                     download('/b/wlxt/kczy/xszy/teacher/downloadFile/%s/%s' % (stu['wlkcid'], id), name=name)
-                    os.chdir(now)
+                os.chdir(now)
             stus = get_json('/b/wlxt/kczy/xszy/teacher/getUndoInfo', data)['object']['aaData']
             for stu in stus:
                 append_hw_csv(os.path.join(path, 'info_%s.csv' % c['wlkcid']), stu)
