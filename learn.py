@@ -173,7 +173,7 @@ def sync_notify(c):
         path = os.path.join(os.path.join(pre, escape(n['bt'])), escape(n['bt']) + '.txt')
         open(path, 'w', encoding='utf-8').write(build_notify(n))
 
-        if n['fjmc'] is not None:
+        if n.get('fjmc') is not None:
             html = get_page('/f/wlxt/kcgg/wlkc_ggb/%s/beforeViewXs?wlkcid=%s&id=%s' % (c['_type'], n['wlkcid'], n['ggid']))
             soup = bs(html, 'html.parser')
 
