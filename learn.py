@@ -204,21 +204,40 @@ def sync_file(c):
 
     os.chdir(pre)
     for r in rows:
-        row_files = get_json(f'/b/wlxt/kj/wlkc_kjxxb/{c["_type"]}/kjxxb/{c["wlkcid"]}/{r["kjflid"]}')['object']
+        if c['_type'] == 'student':
+            row_files = get_json(f'/b/wlxt/kj/wlkc_kjxxb/{c["_type"]}/kjxxb/{c["wlkcid"]}/{r["kjflid"]}')['object']
+        else:
+            data = {'aoData': [
+                {"name": "wlkcid", "value": c['wlkcid']},
+                {"name": "kjflid","value": r["kjflid"]},
+                {"name": "iDisplayStart","value": 0},
+                {"name": "iDisplayLength","value": "-1"},
+            ]}
+            row_files = get_json('/b/wlxt/kj/v_kjxxb_wjwjb/teacher/pageList', data)['object']['aaData']
         if not os.path.exists(escape(r['bt'])):
             os.makedirs(escape(r['bt']))
         rnow = os.getcwd()
         os.chdir(escape(r['bt']))
         for rf in row_files:
-            flag = False
-            for f in files:
-                if rf[7] == f['wjid']:
-                    flag = True
-                    wjlx = f['wjlx']
-                    break
+            wjlx = None
+            if c['_type'] == 'student':
+                flag = False
+                for f in files:
+                    if rf[7] == f['wjid']:
+                        flag = True
+                        wjlx = f['wjlx']
+                        break
+                wjid = rf[7]
+                name = rf[1]
+            else:
+                flag = True
+                wjlx = rf['wjlx']
+                wjid = rf['wjid']
+                name = rf['bt']
             if flag:
-                name = rf[1] + '.' + wjlx if wjlx else rf[1]
-                download(f'/b/wlxt/kj/wlkc_kjxxb/{c["_type"]}/downloadFile?sfgk=0&wjid={rf[7]}', name=name)
+                if wjlx:
+                    name += '.' + wjlx
+                download(f'/b/wlxt/kj/wlkc_kjxxb/{c["_type"]}/downloadFile?sfgk=0&wjid={wjid}', name=name)
             else:
                 print(f'文件{rf[1]}出错')
         os.chdir(rnow)
