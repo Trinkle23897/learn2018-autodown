@@ -95,7 +95,7 @@ def get_courses(args):
     courses = []
     for q in query_list:
         try:
-            c_stu = get_json('/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId/' + q)['resultList']
+            c_stu = get_json('/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId/' + q + '/zh/')['resultList']
         except:
             c_stu = []
         try:
