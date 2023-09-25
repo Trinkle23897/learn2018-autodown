@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup as bs
 import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
+dist_path = './downloads/'
 
 url = 'https://learn.tsinghua.edu.cn'
 user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
@@ -156,7 +157,7 @@ def build_notify(s):
 
 
 def sync_notify(c):
-    pre = os.path.join(c['kcm'], '公告')
+    pre = os.path.join(dist_path, c['kcm'], '公告')
     if not os.path.exists(pre):
         os.makedirs(pre)
     try:
@@ -188,7 +189,7 @@ def sync_notify(c):
 
 def sync_file(c):
     now = os.getcwd()
-    pre = os.path.join(c['kcm'], '课件')
+    pre = os.path.join(dist_path, c['kcm'], '课件')
     if not os.path.exists(pre):
         os.makedirs(pre)
 
@@ -246,7 +247,7 @@ def sync_file(c):
 
 
 def sync_info(c):
-    pre = os.path.join(c['kcm'], '课程信息.txt')
+    pre = os.path.join(dist_path, c['kcm'], '课程信息.txt')
     try:
         if c['_type'] == 'student':
             html = get_page('/f/wlxt/kc/v_kcxx_jskcxx/student/beforeXskcxx?wlkcid=%s&sfgk=-1' % c['wlkcid'])
@@ -274,7 +275,7 @@ def append_hw_csv(fname, stu):
 
 def sync_hw(c):
     now = os.getcwd()
-    pre = os.path.join(c['kcm'], '作业')
+    pre = os.path.join(dist_path, c['kcm'], '作业')
     if not os.path.exists(pre):
         os.makedirs(pre)
     data = {'aoData': [{"name": "wlkcid", "value": c['wlkcid']}]}
@@ -339,7 +340,7 @@ def build_discuss(s):
 
 
 def sync_discuss(c):
-    pre = os.path.join(c['kcm'], '讨论')
+    pre = os.path.join(dist_path, c['kcm'], '讨论')
     if not os.path.exists(pre):
         os.makedirs(pre)
     try:
@@ -452,8 +453,8 @@ def main(args):
         for c in courses:
             c['_type'] = {'0': 'teacher', '3': 'student'}[c['jslx']]
             print('Sync ' + c['xnxq'] + ' ' + c['kcm'])
-            if not os.path.exists(c['kcm']):
-                os.makedirs(c['kcm'])
+            if not os.path.exists(os.path.join(dist_path, c['kcm'])):
+                os.makedirs(os.path.join(dist_path, c['kcm']))
             sync_info(c)
             sync_discuss(c)
             sync_notify(c)
