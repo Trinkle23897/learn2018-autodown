@@ -269,7 +269,8 @@ def append_hw_csv(fname, stu):
         f[i] = info_str
     else:
         f.append(info_str)
-    csv.writer(open(fname, 'w')).writerows(f)
+    csv.writer(open(fname, 'w', encoding='utf8')).writerows(f)
+
 
 
 def sync_hw(c):
