@@ -14,6 +14,8 @@ from bs4 import BeautifulSoup as bs
 import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
+global dist_path
+dist_path = ''
 
 url = 'https://learn.tsinghua.edu.cn'
 user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
@@ -156,7 +158,8 @@ def build_notify(s):
 
 
 def sync_notify(c):
-    pre = os.path.join(c['kcm'], '公告')
+    global dist_path
+    pre = os.path.join(dist_path, c['kcm'], '公告')
     if not os.path.exists(pre):
         os.makedirs(pre)
     try:
@@ -187,8 +190,9 @@ def sync_notify(c):
 
 
 def sync_file(c):
+    global dist_path
     now = os.getcwd()
-    pre = os.path.join(c['kcm'], '课件')
+    pre = os.path.join(dist_path, c['kcm'], '课件')
     if not os.path.exists(pre):
         os.makedirs(pre)
 
@@ -246,7 +250,8 @@ def sync_file(c):
 
 
 def sync_info(c):
-    pre = os.path.join(c['kcm'], '课程信息.txt')
+    global dist_path
+    pre = os.path.join(dist_path, c['kcm'], '课程信息.txt')
     try:
         if c['_type'] == 'student':
             html = get_page('/f/wlxt/kc/v_kcxx_jskcxx/student/beforeXskcxx?wlkcid=%s&sfgk=-1' % c['wlkcid'])
@@ -269,13 +274,13 @@ def append_hw_csv(fname, stu):
         f[i] = info_str
     else:
         f.append(info_str)
-    csv.writer(open(fname, 'w', encoding='utf8')).writerows(f)
-
+    csv.writer(open(fname, 'w')).writerows(f)
 
 
 def sync_hw(c):
+    global dist_path
     now = os.getcwd()
-    pre = os.path.join(c['kcm'], '作业')
+    pre = os.path.join(dist_path, c['kcm'], '作业')
     if not os.path.exists(pre):
         os.makedirs(pre)
     data = {'aoData': [{"name": "wlkcid", "value": c['wlkcid']}]}
@@ -340,7 +345,8 @@ def build_discuss(s):
 
 
 def sync_discuss(c):
-    pre = os.path.join(c['kcm'], '讨论')
+    global dist_path
+    pre = os.path.join(dist_path, c['kcm'], '讨论')
     if not os.path.exists(pre):
         os.makedirs(pre)
     try:
@@ -428,11 +434,14 @@ def get_args():
     parser.add_argument("--course", nargs='+', type=str, default=[])
     parser.add_argument('-p', "--_pass", type=str, default='.pass')
     parser.add_argument('-c', "--cookie", type=str, default='', help='Netscape HTTP Cookie File')
+    parser.add_argument('-d', '--dist', type=str, default='', help='download path')
     args = parser.parse_args()
     return args
 
 
 def main(args):
+    global dist_path
+    dist_path = args.dist
     if args.clear:
         clear(args)
         exit()
@@ -453,8 +462,8 @@ def main(args):
         for c in courses:
             c['_type'] = {'0': 'teacher', '3': 'student'}[c['jslx']]
             print('Sync ' + c['xnxq'] + ' ' + c['kcm'])
-            if not os.path.exists(c['kcm']):
-                os.makedirs(c['kcm'])
+            if not os.path.exists(os.path.join(dist_path, c['kcm'])):
+                os.makedirs(os.path.join(dist_path, c['kcm']))
             sync_info(c)
             sync_discuss(c)
             sync_notify(c)
@@ -464,3 +473,4 @@ def main(args):
 
 if __name__ == '__main__':
     main(get_args())
+ 
