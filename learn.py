@@ -15,7 +15,7 @@ import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
 global dist_path
-dist_path = './downloads/'
+dist_path = ''
 
 url = 'https://learn.tsinghua.edu.cn'
 user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
@@ -434,7 +434,7 @@ def get_args():
     parser.add_argument("--course", nargs='+', type=str, default=[])
     parser.add_argument('-p', "--_pass", type=str, default='.pass')
     parser.add_argument('-c', "--cookie", type=str, default='', help='Netscape HTTP Cookie File')
-    parser.add_argument('-d', '--dist', type=str, default='./downloads/', help='download path')
+    parser.add_argument('-d', '--dist', type=str, default='', help='download path')
     args = parser.parse_args()
     return args
 
