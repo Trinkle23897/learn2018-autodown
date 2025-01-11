@@ -14,10 +14,12 @@ from bs4 import BeautifulSoup as bs
 import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
-global dist_path, url, user_agent, headers, cookie, handler, opener, err404
+global dist_path, url, user_agent, headers, cookie, opener, err404
+dist_path = url = user_agent = headers = cookie = opener = err404 = None
+
 
 def build_global(args):
-    global dist_path, url, user_agent, headers, cookie, handler, opener, err404
+    global dist_path, url, user_agent, headers, cookie, opener, err404
     dist_path = args.dist
     url = 'https://learn.tsinghua.edu.cn'
     user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
@@ -450,6 +452,7 @@ def get_args():
 def main(args):
     global dist_path
     build_global(args)
+    assert (dist_path is not None) and (url is not None) and (user_agent is not None) and (headers is not None) and (cookie is not None) and (opener is not None) and (err404 is not None)
     if args.clear:
         clear(args)
         exit()
