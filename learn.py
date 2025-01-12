@@ -14,18 +14,26 @@ from bs4 import BeautifulSoup as bs
 import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
-global dist_path
-dist_path = ''
+global dist_path, url, user_agent, headers, cookie, opener, err404
+dist_path = url = user_agent = headers = cookie = opener = err404 = None
 
-url = 'https://learn.tsinghua.edu.cn'
-user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
-headers = {'User-Agent': user_agent, 'Connection': 'keep-alive'}
-cookie = http.cookiejar.MozillaCookieJar()
-handler = urllib.request.HTTPCookieProcessor(cookie)
-opener = urllib.request.build_opener(handler)
-urllib.request.install_opener(opener)
-err404 = '\r\n\r\n\r\n<script type="text/javascript">\r\n\tlocation.href="/";\r\n</script>'
 
+def build_global(args):
+    global dist_path, url, user_agent, headers, cookie, opener, err404
+    dist_path = args.dist
+    url = 'https://learn.tsinghua.edu.cn'
+    user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
+    headers = {'User-Agent': user_agent, 'Connection': 'keep-alive'}
+    handlers = []
+    if args.http_proxy:
+        handlers.append(urllib.request.ProxyHandler({'http': args.http_proxy}))
+    if args.https_proxy:
+        handlers.append(urllib.request.ProxyHandler({'https': args.https_proxy}))
+    cookie = http.cookiejar.MozillaCookieJar()
+    handlers.append(urllib.request.HTTPCookieProcessor(cookie))
+    opener = urllib.request.build_opener(*handlers)
+    urllib.request.install_opener(opener)
+    err404 = '\r\n\r\n\r\n<script type="text/javascript">\r\n\tlocation.href="/";\r\n</script>'
 
 def get_xsrf_token():
     cookie_obj = cookie._cookies.get('learn.tsinghua.edu.cn', dict()).get('/', dict()).get('XSRF-TOKEN', None)
@@ -435,13 +443,16 @@ def get_args():
     parser.add_argument('-p', "--_pass", type=str, default='.pass')
     parser.add_argument('-c', "--cookie", type=str, default='', help='Netscape HTTP Cookie File')
     parser.add_argument('-d', '--dist', type=str, default='', help='download path')
+    parser.add_argument('--http_proxy', type=str, default='', help='http proxy')
+    parser.add_argument('--https_proxy', type=str, default='', help='https proxy')
     args = parser.parse_args()
     return args
 
 
 def main(args):
     global dist_path
-    dist_path = args.dist
+    build_global(args)
+    assert (dist_path is not None) and (url is not None) and (user_agent is not None) and (headers is not None) and (cookie is not None) and (opener is not None) and (err404 is not None)
     if args.clear:
         clear(args)
         exit()
