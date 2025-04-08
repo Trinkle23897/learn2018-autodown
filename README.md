@@ -27,68 +27,72 @@ pip3 install -r requirements.txt --user -U
 
 ## Usage
 
-`learn-stdio.py` 中显示的参数和下面是一样的。
+### CLI 下载
 
-### 下载选项
+```bash
+python learn-stdio.py
+```
+
+### 原始脚本下载选项
 
 下载当前学期课程（默认）
 
 ```bash
-./learn_async.py
+python learn_async.py
 ```
 
 下载所有学期课程
 
 ```bash
-./learn_async.py --all
+python learn_async.py --all
 ```
 
 下载指定学期课程
 
 ```bash
-./learn_async.py --semester 2018-2019-1 2018-2019-3
+python learn_async.py --semester 2018-2019-1 2018-2019-3
 ```
 
 下载指定课程
 
 ```bash
-./learn_async.py --course 计算机网络安全技术 计算机组成原理
+python learn_async.py --course 计算机网络安全技术 计算机组成原理
 ```
 
 跳过某几个课程下载
 
 ```bash
-./learn_async.py --ignore 数据结构 "实验室科研探究(1)"
+python learn_async.py --ignore 数据结构 "实验室科研探究(1)"
 ```
 
 移除所有文件夹下完全相同的文件
 
 ```bash
-./learn_async.py --clear --all
+python learn_async.py --clear --all
 ```
 
 指定下载路径
 
 ```bash
-./learn_async.py --dist your_download_path
+python learn_async.py --dist your_download_path
 ```
 
 启用多进程下载
 
 ```bash
-./learn_async.py --multi
+python learn_async.py --multi
 ```
 
 启用多进程下载，并指定进程数（如果不指定则默认使用所有 CPU 核心数）
 
 ```bash
-./learn_async.py --multi --processes 4
+python learn_async.py --multi --processes 4
 ```
 
 以上参数均可组合使用，比如我想并发的更新大二的课程到`./download`目录，但是不想下载数据结构、实验室科研探究、中国近现代史纲要（课程文件太大了）：
 
 ```bash
-./learn_async.py --semester 2017-2018-1 2017-2018-2 2017-2018-3 --ignore 数据结构 "实验室科研探究(2)" 中国近现代史纲要 --multi --dist ./download
+python learn_async.py --semester 2017-2018-1 2017-2018-2 2017-2018-3 --ignore 数据结构 "实验室科研探究(2)" 中国近现代史纲要 --multi --dist ./download
 ```
 
 **如果想跳过正在下载的某个文件，按 Ctrl+C 即可。**
@@ -98,7 +102,7 @@ pip3 install -r requirements.txt --user -U
 懒得每次输入 info 账号密码？创建文件`.pass`，写入 info 账号和密码之后可以自动登录，或者是：
 
 ```bash
-./learn_async.py --_pass your_info_file
+python learn_async.py --_pass your_info_file
 ```
 
 其中文件格式为
@@ -111,7 +115,7 @@ info密码
 使用 Cookie 登录而不是输入 info 密码：
 
 ```bash
-./learn_async.py --cookie your_cookie_filename
+python learn_async.py --cookie your_cookie_filename
 ```
 
 其中 cookie 文件格式可参考 `example_cookie.txt`。
