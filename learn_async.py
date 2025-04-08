@@ -694,9 +694,9 @@ def main(args):
     if args.login:
         courses = get_courses(args)
         if args.multi:
-            # 如果未指定进程数，则使用课程数量
+            # 如果未指定进程数，则使用CPU核数
             if not args.processes:
-                args.processes = len(courses)
+                args.processes = mp.cpu_count()
             print(f"启动多进程下载，进程数：{args.processes}")
             pool = mp.Pool(processes=args.processes)
             process_func = partial(process_course, args=args)
