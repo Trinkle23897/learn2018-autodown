@@ -110,6 +110,7 @@ def escape(s):
         .replace('"', "_")
         .replace("'", "_")
         .replace("|", "")
+        .replace("\0", "")  # Remove null characters
     )
 
 
