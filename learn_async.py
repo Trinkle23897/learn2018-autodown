@@ -330,11 +330,14 @@ def sync_file(c):
         except:  # None
             return
 
-    rows = json.loads(
-        get_page(
-            f'/b/wlxt/kj/wlkc_kjflb/{c["_type"]}/pageList?_csrf={get_xsrf_token()}&wlkcid={c["wlkcid"]}'
-        )
-    )["object"]["rows"]
+    try:
+        rows = json.loads(
+            get_page(
+                f'/b/wlxt/kj/wlkc_kjflb/{c["_type"]}/pageList?_csrf={get_xsrf_token()}&wlkcid={c["wlkcid"]}'
+            )
+        )["object"]["rows"]
+    except:  # None
+        return
 
     os.chdir(pre)
     for r in rows:
