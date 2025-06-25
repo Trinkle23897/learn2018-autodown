@@ -649,7 +649,12 @@ def clear(args):
 def process_course(c, args):
     # 处理单个课程的函数，用于多进程
     build_global(args)
-    login(args.username, args.password)
+    if args.cookie:
+        cookie.load(args.cookie, ignore_discard=True, ignore_expires=True)
+        args.login = get_page("/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxg") != err404
+        print("login successfully" if args.login else "login failed!")
+    else:
+        login(args.username, args.password)
 
     c["_type"] = {"0": "teacher", "3": "student"}[c["jslx"]]
     print("Sync " + c["xnxq"] + " " + c["kcm"])
