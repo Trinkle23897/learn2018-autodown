@@ -1,32 +1,119 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-__author__ = "Trinkle23897"
-__copyright__ = "Copyright (C) 2019 Trinkle23897"
-__license__ = "MIT"
-__email__ = "463003665@qq.com"
-__modified_by__ = "zycccishere"
-
 import os, csv, json, html, urllib, getpass, base64, hashlib, argparse, platform, subprocess
 from tqdm import tqdm
 import urllib.request, http.cookiejar
 from bs4 import BeautifulSoup as bs
 import multiprocessing as mp
 from functools import partial
+import uuid
+import re
+import time
+import asyncio
 
 import ssl
 
+from gmssl import sm2
+
+from browser_login import (
+    generate_fingerprint,
+    save_fingerprint_data,
+    load_fingerprint_data,
+)
+
 ssl._create_default_https_context = ssl._create_unverified_context
-global dist_path, url, user_agent, headers, cookie, opener, err404
-dist_path = url = user_agent = headers = cookie = opener = err404 = None
+global dist_path, url, user_agent, headers, cookie, opener, err404, fingerprint_data
+dist_path = url = user_agent = headers = cookie = opener = err404 = fingerprint_data = (
+    None
+)
+
+
+def build_url(uri):
+    return uri if uri.startswith("http") else url + uri
+
+
+def encrypt_password_sm2(password, public_key):
+    """
+    使用SM2加密密码
+    """
+    try:
+        # 清华SSO使用的公钥格式处理：统一为十六进制字符串，gmssl 期望 hex 字符串
+        if isinstance(public_key, (bytes, bytearray)):
+            public_key = public_key.decode("utf-8", errors="ignore")
+        public_key = str(public_key).strip()
+
+        # 计算并打印 x/y 坐标（如果可用）
+        public_key_hex = public_key
+        if public_key_hex.startswith("04") and len(public_key_hex) == 130:
+            x_hex = public_key_hex[2:66]
+            y_hex = public_key_hex[66:130]
+            print(f"公钥X坐标: {x_hex[:20]}...")
+            print(f"公钥Y坐标: {y_hex[:20]}...")
+        elif len(public_key_hex) == 128:
+            x_hex = public_key_hex[:64]
+            y_hex = public_key_hex[64:]
+            print(f"公钥X坐标: {x_hex[:20]}...")
+            print(f"公钥Y坐标: {y_hex[:20]}...")
+            public_key_hex = "04" + public_key_hex
+
+        # SM2加密 - 使用C1C3C2模式以匹配浏览器实现
+        sm2_crypt = sm2.CryptSM2(
+            public_key=public_key_hex, private_key=None, mode=1
+        )  # mode=1 for C1C3C2
+        encrypted = sm2_crypt.encrypt(password.encode("utf-8"))
+
+        # 转换为16进制字符串（大写，匹配浏览器格式）
+        encrypted_hex = encrypted.hex().upper()
+
+        print(f"密码加密成功，长度: {len(encrypted_hex)}")
+        return encrypted_hex
+
+    except Exception as e:
+        print(f"SM2加密失败: {e}")
+        print("将使用明文密码")
+        return password
+
+
+def extract_public_key_from_page(login_page_html):
+    """
+    从登录页面提取SM2公钥
+    """
+    soup = bs(login_page_html, "html.parser")
+
+    # 查找包含公钥的元素
+    public_key_element = soup.find("div", {"id": "sm2publicKey"})
+    if public_key_element:
+        public_key = public_key_element.get_text().strip()
+        print(f"找到SM2公钥: {public_key[:20]}...")
+        return public_key
+
+    # 如果没找到，使用默认公钥
+    default_key = "04d0c9e1ae89279fe05b435d63e3eba437bf510e09da5f71558974a19dc596724227f08dc2fc6e74bbb9d8b468d4dd5205e9b6793a3bbc48df3fdf219b3ea140e3"
+    print("未找到公钥，使用默认公钥")
+    return default_key
 
 
 def build_global(args):
     global dist_path, url, user_agent, headers, cookie, opener, err404
     dist_path = args.dist
     url = "https://learn.tsinghua.edu.cn"
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36"
-    headers = {"User-Agent": user_agent, "Connection": "keep-alive"}
+    user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+    # 更完整的浏览器头部，模拟真实浏览器行为
+    headers = {
+        "User-Agent": user_agent,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Cache-Control": "max-age=0",
+    }
     handlers = []
 
     # 添加SSL上下文配置
@@ -40,7 +127,9 @@ def build_global(args):
         handlers.append(urllib.request.ProxyHandler({"http": args.http_proxy}))
     if args.https_proxy:
         handlers.append(urllib.request.ProxyHandler({"https": args.https_proxy}))
-    cookie = http.cookiejar.MozillaCookieJar()
+    # 如果cookie已经存在（例如从浏览器登录），则保留它
+    if cookie is None:
+        cookie = http.cookiejar.MozillaCookieJar()
     handlers.append(urllib.request.HTTPCookieProcessor(cookie))
     opener = urllib.request.build_opener(*handlers)
     urllib.request.install_opener(opener)
@@ -71,25 +160,91 @@ def open_page(uri, values={}):
             print(uri, ":", e.reason)
 
 
-def get_page(uri, values={}):
-    data = open_page(uri, values)
-    if data:
-        return data.read().decode()
+from requests import Session
 
 
-def get_json(uri, values={}):
-    xsrf_token = get_xsrf_token()
-    if xsrf_token:
-        if "?" not in uri:
-            uri = uri + f"?_csrf={xsrf_token}"
-        else:
-            uri = uri + f"&_csrf={xsrf_token}"
-    try:
-        page = get_page(uri, values)
-        result = json.loads(page)
-        return result
-    except:
-        return {}
+def get_page(uri, values={}, session=None):
+    """获取页面内容，支持session和传统opener两种方式"""
+    if session:
+        # 使用新的session方式
+        try:
+            url_full = uri if uri.startswith("http") else url + uri
+            if values:
+                # 使用与原始代码完全相同的编码方式
+                import urllib.parse
+
+                encoded_data = urllib.parse.urlencode(values)
+                response = session.post(
+                    url_full,
+                    data=encoded_data,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+            else:
+                response = session.get(url_full)
+            response.raise_for_status()
+            return response.text
+        except Exception as e:
+            print(f"Session请求失败 {uri}: {e}")
+            return None
+    else:
+        # 使用传统的opener方式（向后兼容）
+        data = open_page(uri, values)
+        if data:
+            try:
+                # 首先尝试UTF-8解码
+                return data.read().decode("utf-8")
+            except UnicodeDecodeError:
+                # 如果失败，尝试GBK解码
+                try:
+                    data.seek(0)  # 重置文件指针
+                    return data.read().decode("gbk")
+                except:
+                    # 最后尝试latin1
+                    data.seek(0)
+                    return data.read().decode("latin1")
+
+
+def get_json(uri, values={}, session: Session = None):
+    """获取JSON数据，支持session和传统opener两种方式"""
+    if session:
+        # 使用新的session方式
+        try:
+            url_full = uri if uri.startswith("http") else url + uri
+
+            # Session已经在headers中包含了XSRF-TOKEN，不需要手动添加
+            if values:
+                # 使用与原始代码完全相同的编码方式
+                import urllib.parse
+
+                encoded_data = urllib.parse.urlencode(values)
+
+                # 发送编码后的数据
+                response = session.post(
+                    url_full,
+                    data=encoded_data,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+            else:
+                response = session.get(url_full)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"Session JSON请求失败 {uri}: {e}")
+            return {}
+    else:
+        # 使用传统的opener方式（向后兼容）
+        xsrf_token = get_xsrf_token()
+        if xsrf_token:
+            if "?" not in uri:
+                uri = uri + f"?_csrf={xsrf_token}"
+            else:
+                uri = uri + f"&_csrf={xsrf_token}"
+        try:
+            page = get_page(uri, values)  # 传统方式不传session参数
+            result = json.loads(page)
+            return result
+        except:
+            return {}
 
 
 def escape(s):
@@ -113,67 +268,383 @@ def escape(s):
     )
 
 
+def parse_login_form(login_page_html):
+    """
+    解析登录页面，提取表单中的隐藏字段和必要参数
+    """
+    soup = bs(login_page_html, "html.parser")
+    form_data = {}
+
+    # 查找登录表单
+    form = soup.find("form", {"id": "theform"}) or soup.find("form")
+    if not form:
+        print("未找到登录表单")
+        return None
+
+    # 提取所有input字段
+    inputs = form.find_all("input")
+    for inp in inputs:
+        name = inp.get("name")
+        value = inp.get("value", "")
+        input_type = inp.get("type", "text")
+
+        if name and input_type not in ["submit", "button"]:
+            form_data[name] = value
+            print(f"找到表单字段: {name} = {value}")
+
+    return form_data
+
+
 def login(username, password):
-    login_uri = "https://id.tsinghua.edu.cn/do/off/ui/auth/login/post/bb5df85216504820be7bba2b0ae1535b/0?/login.do"
-    values = {"i_user": username, "i_pass": password, "atOnce": "true"}
-    info = get_page(login_uri, values)
-    successful = "SUCCESS" in info
-    # print(
-    #     "User %s login successfully" % (username)
-    #     if successful
-    #     else "User %s login failed!" % (username)
-    # )
-    if not successful:
-        print("User %s login failed!" % (username))
-        return False
-    if successful:
-        get_page(
-            get_page(info.split('replace("')[-1].split('");\n')[0])
-            .split('location="')[1]
-            .split('";\r\n')[0]
-        )
-    return successful
+    """
+    新的SSO双因素认证登录流程
+    """
+    global fingerprint_data
 
+    # 尝试加载已保存的指纹数据
+    fingerprint_data = load_fingerprint_data(username)
+    if not fingerprint_data:
+        # 生成新的指纹数据
+        fingerprint = generate_fingerprint()
+        fingerprint_data = save_fingerprint_data(username, fingerprint)
+        print(f"生成新的设备指纹: {fingerprint}")
+    else:
+        print("使用已保存的设备指纹")
 
-def get_courses(args):
+    # 第一步：访问SSO登录页面
+    sso_login_url = "https://id.tsinghua.edu.cn/do/off/ui/auth/login/form/bb5df85216504820be7bba2b0ae1535b/0"
+
     try:
-        now = get_json("/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester")["result"][
-            "xnxq"
-        ]
-        if args.all or args.course or args.semester:
-            query_list = [
-                x
-                for x in get_json("/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq")
-                if x is not None
-            ]
-            query_list.sort()
-            if args.semester:
-                query_list_ = [q for q in query_list if q in args.semester]
-                if len(query_list_) == 0:
-                    print("Invalid semester, choices: ", query_list)
-                    return []
-                query_list = query_list_
+        # 清理cookies
+        cookie.clear()
+
+        # 获取登录页面
+        login_page = get_page(sso_login_url)
+        if not login_page:
+            print("无法访问SSO登录页面")
+            return False
+
+        print("成功获取SSO登录页面，正在解析表单...")
+
+        # 解析登录表单，获取隐藏字段
+        form_data = parse_login_form(login_page)
+        if not form_data:
+            print("无法解析登录表单")
+            return False
+
+        # 提取公钥并加密密码
+        public_key = extract_public_key_from_page(login_page)
+        encrypted_password = encrypt_password_sm2(password, public_key)
+
+        # 第二步：提交登录信息 - 使用正确的action URL
+        login_post_url = "https://id.tsinghua.edu.cn/do/off/ui/auth/login/check"
+
+        # 更新表单数据，包含用户输入和指纹信息
+        form_data.update(
+            {
+                "i_user": username,
+                "i_pass": encrypted_password,  # 使用加密后的密码
+                "fingerPrint": fingerprint_data["fingerPrint"],
+                "singleLogin": "on",  # 单点登录，使用 "on" 而不是 "1"
+            }
+        )
+
+        # 清空验证码字段（如果存在）
+        if "i_captcha" in form_data:
+            form_data["i_captcha"] = ""
+
+        # 移除可能干扰的字段
+        form_data.pop("atOnce", None)
+
+        # 如果有额外的指纹数据，也包含进去
+        if fingerprint_data.get("fingerGenPrint"):
+            form_data["fingerGenPrint"] = fingerprint_data["fingerGenPrint"]
+        if fingerprint_data.get("fingerGenPrint3"):
+            form_data["fingerGenPrint3"] = fingerprint_data["fingerGenPrint3"]
+
+        print(
+            f"正在使用指纹 {fingerprint_data['fingerPrint'][:8]}... 登录用户 {username}"
+        )
+        print(f"提交表单数据: {list(form_data.keys())}")
+
+        # 添加登录请求特定的头部
+        original_headers = headers.copy()
+        headers.update(
+            {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Origin": "https://id.tsinghua.edu.cn",
+                "Referer": sso_login_url,
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-User": "?1",
+            }
+        )
+
+        # 提交登录请求
+        login_response = get_page(login_post_url, form_data)
+
+        # 恢复原始头部
+        headers.clear()
+        headers.update(original_headers)
+
+        if not login_response:
+            print("登录请求失败")
+            return False
+
+        print(f"登录响应长度: {len(login_response)}")
+
+        # 保存登录响应用于调试
+        with open("login_response_debug.html", "w", encoding="utf-8") as f:
+            f.write(login_response)
+        print("登录响应已保存到 login_response_debug.html")
+
+        # 检查登录结果 - 更详细的检查
+        if "SUCCESS" in login_response:
+            print(f"用户 {username} 登录成功")
+            return handle_login_success(username, login_response)
+
+        elif "doubleAuth" in login_response or "saveFinger" in login_response:
+            print("检测到双因素认证要求")
+            return handle_two_factor_auth(username, password, login_response)
+
+        elif "location.href" in login_response or "window.location" in login_response:
+            print("检测到JavaScript重定向，可能是双因素认证")
+            return handle_login_redirect(username, password, login_response)
+
+        elif "验证码" in login_response or "captcha" in login_response.lower():
+            print("需要验证码，当前版本不支持")
+            return False
+
+        elif (
+            "用户名或密码错误" in login_response
+            or "用户名或密码不正确" in login_response
+        ):
+            print("用户名或密码错误")
+            return False
+
         else:
-            query_list = [now]
-    except:
-        print("您被退学了！")
-        return []
+            print(f"用户 {username} 登录失败，未知原因")
+            print("响应内容片段:", login_response[:500])
+
+            # 保存完整响应以供调试
+            with open("login_response.html", "w", encoding="utf-8") as f:
+                f.write(login_response)
+            print("完整登录响应已保存到 login_response.html")
+
+            # 如果登录失败，删除可能无效的指纹数据
+            fingerprint_file = f".fingerprint_{username}.json"
+            if os.path.exists(fingerprint_file):
+                os.remove(fingerprint_file)
+                print("删除无效的指纹数据，下次登录将重新生成")
+            return False
+
+    except Exception as e:
+        print(f"登录过程中发生错误: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return False
+
+
+def handle_login_success(session, username, login_response):
+    """
+    处理登录成功后的重定向
+    """
+    try:
+        # 解析重定向URL
+        if 'replace("' in login_response:
+            redirect_url = login_response.split('replace("')[1].split('")')[0]
+            print(f"处理重定向: {redirect_url}")
+
+            # 访问重定向页面
+            redirect_page = session.get(redirect_url)
+
+            # 如果有进一步的重定向，继续处理
+            if redirect_page and 'location="' in redirect_page:
+                final_url = redirect_page.split('location="')[1].split('"')[0]
+                print(f"最终重定向: {final_url}")
+                session.get(final_url)
+
+        # 尝试访问网络学堂主页验证登录状态
+        test_url = "/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq"
+        test_result = session.get(test_url)
+
+        if test_result and len(test_result) > 0:
+            print("登录验证成功，可以访问网络学堂")
+            return True
+        else:
+            print("登录后无法访问网络学堂，可能需要重新认证")
+            # 删除可能过期的指纹数据
+            fingerprint_file = f".fingerprint_{username}.json"
+            if os.path.exists(fingerprint_file):
+                os.remove(fingerprint_file)
+            return False
+
+    except Exception as e:
+        print(f"处理登录重定向时出错: {e}")
+        return False
+
+
+def handle_login_redirect(username, password, login_response):
+    """
+    处理登录过程中的JavaScript重定向（通常是双因素认证）
+    """
+    print("处理登录重定向...")
+
+    try:
+        # 尝试提取重定向URL
+        redirect_patterns = [
+            r'location\.href\s*=\s*[\'"]([^\'"]+)[\'"]',
+            r'window\.location\s*=\s*[\'"]([^\'"]+)[\'"]',
+            r'location\.replace\([\'"]([^\'"]+)[\'"]\)',
+        ]
+
+        redirect_url = None
+        for pattern in redirect_patterns:
+            match = re.search(pattern, login_response)
+            if match:
+                redirect_url = match.group(1)
+                break
+
+        if redirect_url:
+            print(f"找到重定向URL: {redirect_url}")
+
+            # 访问重定向页面
+            redirect_page = get_page(redirect_url)
+
+            if redirect_page:
+                # 检查是否是双因素认证页面
+                if "doubleAuth" in redirect_page or "saveFinger" in redirect_page:
+                    return handle_two_factor_auth(username, password, redirect_page)
+                elif "SUCCESS" in redirect_page:
+                    return handle_login_success(username, redirect_page)
+                else:
+                    print("重定向页面内容未知")
+                    print("页面内容片段:", redirect_page[:500])
+        else:
+            print("无法提取重定向URL")
+            print("响应内容:", login_response[:1000])
+
+        return False
+
+    except Exception as e:
+        print(f"处理重定向时出错: {e}")
+        return False
+
+
+def handle_two_factor_auth(username, password, response):
+    """
+    处理双因素认证
+    """
+    print("正在处理双因素认证...")
+
+    try:
+        # 检查是否需要保存设备指纹
+        if "saveFinger" in response:
+            print("需要保存设备指纹信息")
+
+            # 构建设备指纹保存请求
+            save_finger_url = (
+                "https://id.tsinghua.edu.cn/b/doubleAuth/personal/saveFinger"
+            )
+
+            device_name = f"Python-Script-{platform.system()}"
+            finger_data = {
+                "fingerprint": fingerprint_data["fingerPrint"],
+                "deviceName": device_name,
+                "radioVal": "是",  # 信任此设备
+            }
+
+            # 发送保存指纹请求
+            save_response = get_page(save_finger_url, finger_data)
+
+            if save_response and '"success":true' in save_response:
+                print("设备指纹保存成功")
+
+                # 解析返回的指纹数据
+                try:
+                    response_data = json.loads(save_response)
+                    if "data" in response_data:
+                        # 更新指纹数据
+                        fingerprint_data.update(
+                            {
+                                "fingerGenPrint": response_data["data"].get(
+                                    "fingerGenPrint", ""
+                                ),
+                                "fingerGenPrint3": response_data["data"].get(
+                                    "fingerGenPrint3", ""
+                                ),
+                                "timestamp": time.time(),
+                            }
+                        )
+                        save_fingerprint_data(
+                            username,
+                            fingerprint_data["fingerPrint"],
+                            fingerprint_data["fingerGenPrint"],
+                            fingerprint_data["fingerGenPrint3"],
+                        )
+                        print("指纹数据已更新并保存")
+
+                        # 重新尝试登录
+                        return login(username, password)
+
+                except json.JSONDecodeError:
+                    pass
+            else:
+                print("设备指纹保存失败")
+
+        # 如果需要手动验证，提示用户
+        print("此账户需要手动完成双因素认证")
+        print("请在浏览器中完成认证后，将生成的指纹信息手动添加到指纹文件中")
+        return False
+
+    except Exception as e:
+        print(f"处理双因素认证时出错: {e}")
+        return False
+
+
+def get_courses(session, args):
+    now = session.get(
+        build_url("/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester")
+    ).json()["result"]["xnxq"]
+    # print("now: ", now)
+    if args.all or args.course or args.semester:
+        query_list = [
+            x
+            for x in session.get(
+                build_url("/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq")
+            ).json()
+            if x is not None
+        ]
+        query_list.sort()
+        if args.semester:
+            query_list_ = [q for q in query_list if q in args.semester]
+            if len(query_list_) == 0:
+                # print("Invalid semester, choices: ", query_list)
+                return []
+            query_list = query_list_
+    else:
+        query_list = [now]
+    # print("query_list: ", query_list)
     courses = []
     for q in query_list:
-        try:
-            c_stu = get_json(
+        c_stu = session.get(
+            build_url(
                 "/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId/"
-                + q
-                + "/zh/"
-            )["resultList"]
-        except:
-            c_stu = []
-        try:
-            c_ta = get_json("/b/kc/v_wlkc_kcb/queryAsorCoCourseList/%s/0" % q)[
-                "resultList"
-            ]
-        except:
-            c_ta = []
+            )
+            + q
+            + "/zh/"
+        ).json()["resultList"]
+
+        # print("c_stu: ", c_stu)
+
+        c_ta = session.get(
+            build_url("/b/kc/v_wlkc_kcb/queryAsorCoCourseList/%s/0" % q)
+        ).json()["resultList"]
+
+        # print("c_ta: ", c_ta)
+
         current_courses = []
         for c in c_stu:
             c["jslx"] = "3"
@@ -213,7 +684,8 @@ class TqdmUpTo(tqdm):
         self.update(b * bsize - self.n)
 
 
-def download(uri, name, target_dir=None):
+def download(uri, name, target_dir=None, session=None):
+    """下载文件，支持session和传统urllib两种方式"""
     filename = escape(name)
 
     # 使用绝对路径
@@ -228,17 +700,41 @@ def download(uri, name, target_dir=None):
         return
 
     try:
-        with TqdmUpTo(
-            ascii=True,
-            dynamic_ncols=True,
-            unit="B",
-            unit_scale=True,
-            miniters=1,
-            desc=filename,
-        ) as t:
-            urllib.request.urlretrieve(
-                url + uri, filename=filename, reporthook=t.update_to, data=None
-            )
+        if session:
+            # 使用新的session方式
+            download_url = uri if uri.startswith("http") else url + uri
+            response = session.get(download_url, stream=True)
+            response.raise_for_status()
+
+            total_size = int(response.headers.get("content-length", 0))
+
+            with TqdmUpTo(
+                ascii=True,
+                dynamic_ncols=True,
+                unit="B",
+                unit_scale=True,
+                miniters=1,
+                desc=filename,
+                total=total_size,
+            ) as t:
+                with open(filename, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            t.update(len(chunk))
+        else:
+            # 使用传统的urllib方式（向后兼容）
+            with TqdmUpTo(
+                ascii=True,
+                dynamic_ncols=True,
+                unit="B",
+                unit_scale=True,
+                miniters=1,
+                desc=filename,
+            ) as t:
+                urllib.request.urlretrieve(
+                    url + uri, filename=filename, reporthook=t.update_to, data=None
+                )
     except Exception as e:
         print(
             f"Could not download file {filename} ... removing broken file. Error: {str(e)}"
@@ -271,20 +767,20 @@ def makedirs_safe(directory):
         pass
 
 
-def sync_notify(c):
+def sync_notify(session, c):
     global dist_path
     pre = os.path.join(dist_path, c["kcm"], "公告")
     makedirs_safe(pre)
     try:
         data = {"aoData": [{"name": "wlkcid", "value": c["wlkcid"]}]}
         if c["_type"] == "student":
-            notify = get_json("/b/wlxt/kcgg/wlkc_ggb/student/pageListXs", data)[
-                "object"
-            ]["aaData"]
+            notify = get_json(
+                "/b/wlxt/kcgg/wlkc_ggb/student/pageListXs", data, session=session
+            )["object"]["aaData"]
         else:
-            notify = get_json("/b/wlxt/kcgg/wlkc_ggb/teacher/pageList", data)["object"][
-                "aaData"
-            ]
+            notify = get_json(
+                "/b/wlxt/kcgg/wlkc_ggb/teacher/pageList", data, session=session
+            )["object"]["aaData"]
     except:
         return
     for n in notify:
@@ -297,7 +793,8 @@ def sync_notify(c):
         if n.get("fjmc") is not None:
             html = get_page(
                 "/f/wlxt/kcgg/wlkc_ggb/%s/beforeViewXs?wlkcid=%s&id=%s"
-                % (c["_type"], n["wlkcid"], n["ggid"])
+                % (c["_type"], n["wlkcid"], n["ggid"]),
+                session=session,
             )
             soup = bs(html, "html.parser")
 
@@ -306,11 +803,11 @@ def sync_notify(c):
             now = os.getcwd()
             os.chdir(os.path.join(pre, escape(n["bt"])))
             name = n["fjmc"]
-            download(link["href"], name=name)
+            download(link["href"], name=name, session=session)
             os.chdir(now)
 
 
-def sync_file(c):
+def sync_file(session, c):
     global dist_path
     now = os.getcwd()
     pre = os.path.join(dist_path, c["kcm"], "课件")
@@ -319,23 +816,32 @@ def sync_file(c):
     if c["_type"] == "student":
         files = get_json(
             "/b/wlxt/kj/wlkc_kjxxb/student/kjxxbByWlkcidAndSizeForStudent?wlkcid=%s&size=0"
-            % c["wlkcid"]
+            % c["wlkcid"],
+            session=session,
         )["object"]
     else:
         try:
             files = get_json(
                 "/b/wlxt/kj/v_kjxxb_wjwjb/teacher/queryByWlkcid?wlkcid=%s&size=0"
-                % c["wlkcid"]
+                % c["wlkcid"],
+                session=session,
             )["object"]["resultsList"]
         except:  # None
             return
 
     try:
-        rows = json.loads(
-            get_page(
+        if session:
+            # 使用session方式，不需要手动添加CSRF token
+            page_content = get_page(
+                f'/b/wlxt/kj/wlkc_kjflb/{c["_type"]}/pageList?wlkcid={c["wlkcid"]}',
+                session=session,
+            )
+        else:
+            # 使用传统方式，需要手动添加CSRF token
+            page_content = get_page(
                 f'/b/wlxt/kj/wlkc_kjflb/{c["_type"]}/pageList?_csrf={get_xsrf_token()}&wlkcid={c["wlkcid"]}'
             )
-        )["object"]["rows"]
+        rows = json.loads(page_content)["object"]["rows"]
     except:  # None
         return
 
@@ -343,7 +849,8 @@ def sync_file(c):
     for r in rows:
         if c["_type"] == "student":
             row_files = get_json(
-                f'/b/wlxt/kj/wlkc_kjxxb/{c["_type"]}/kjxxb/{c["wlkcid"]}/{r["kjflid"]}'
+                f'/b/wlxt/kj/wlkc_kjxxb/{c["_type"]}/kjxxb/{c["wlkcid"]}/{r["kjflid"]}',
+                session=session,
             )["object"]
         else:
             data = {
@@ -354,9 +861,9 @@ def sync_file(c):
                     {"name": "iDisplayLength", "value": "-1"},
                 ]
             }
-            row_files = get_json("/b/wlxt/kj/v_kjxxb_wjwjb/teacher/pageList", data)[
-                "object"
-            ]["aaData"]
+            row_files = get_json(
+                "/b/wlxt/kj/v_kjxxb_wjwjb/teacher/pageList", data, session=session
+            )["object"]["aaData"]
         makedirs_safe(escape(r["bt"]))
         rnow = os.getcwd()
         os.chdir(escape(r["bt"]))
@@ -382,6 +889,7 @@ def sync_file(c):
                 download(
                     f'/b/wlxt/kj/wlkc_kjxxb/{c["_type"]}/downloadFile?sfgk=0&wjid={wjid}',
                     name=name,
+                    session=session,
                 )
             else:
                 print(f"文件{rf[1]}出错")
@@ -390,25 +898,25 @@ def sync_file(c):
     os.chdir(now)
 
 
-def sync_info(c):
+def sync_info(session, c):
     global dist_path
     pre = os.path.join(dist_path, c["kcm"], "课程信息.txt")
-    try:
-        if c["_type"] == "student":
-            html = get_page(
-                "/f/wlxt/kc/v_kcxx_jskcxx/student/beforeXskcxx?wlkcid=%s&sfgk=-1"
-                % c["wlkcid"]
-            )
-        else:
-            html = get_page(
-                "/f/wlxt/kc/v_kcxx_jskcxx/teacher/beforeJskcxx?wlkcid=%s&sfgk=-1"
-                % c["wlkcid"]
-            )
-        open(pre, "w").write(
-            "\n".join(bs(html, "html.parser").find(class_="course-w").text.split())
+
+    if c["_type"] == "student":
+        html = get_page(
+            "/f/wlxt/kc/v_kcxx_jskcxx/student/beforeXskcxx?wlkcid=%s&sfgk=-1"
+            % c["wlkcid"],
+            session=session,
         )
-    except:
-        return
+    else:
+        html = get_page(
+            "/f/wlxt/kc/v_kcxx_jskcxx/teacher/beforeJskcxx?wlkcid=%s&sfgk=-1"
+            % c["wlkcid"],
+            session=session,
+        )
+    open(pre, "w").write(
+        "\n".join(bs(html, "html.parser").find(class_="course-w").text.split())
+    )
 
 
 def append_hw_csv(fname, stu):
@@ -435,7 +943,7 @@ def append_hw_csv(fname, stu):
     csv.writer(open(fname, "w")).writerows(f)
 
 
-def sync_hw(c):
+def sync_hw(session, c):
     global dist_path
     now = os.getcwd()
     pre = os.path.join(dist_path, c["kcm"], "作业")
@@ -446,23 +954,60 @@ def sync_hw(c):
         hws = []
         for hwtype in ["zyListWj", "zyListYjwg", "zyListYpg"]:
             try:
-                hws += get_json("/b/wlxt/kczy/zy/student/%s" % hwtype, data)["object"][
-                    "aaData"
-                ]
+                hws += get_json(
+                    "/b/wlxt/kczy/zy/student/%s" % hwtype, data, session=session
+                )["object"]["aaData"]
             except:
                 continue
     else:
-        hws = get_json("/b/wlxt/kczy/zy/teacher/pageList", data)["object"]["aaData"]
+        hws = get_json("/b/wlxt/kczy/zy/teacher/pageList", data, session=session)[
+            "object"
+        ]["aaData"]
     for hw in hws:
         path = os.path.join(pre, escape(hw["bt"]))
         if not os.path.exists(path):
             os.makedirs(path)
+
+        # 获取作业详情页面并保存为Markdown
+        try:
+            if c["_type"] == "student":
+                # 构建作业详情页面URL
+                detail_url = (
+                    "/f/wlxt/kczy/zy/student/viewZy?wlkcid=%s&sfgq=0&zyid=%s&xszyid=%s"
+                    % (hw["wlkcid"], hw["zyid"], hw.get("xszyid", ""))
+                )
+            else:
+                # 教师端的URL可能不同，先使用学生端的逻辑
+                detail_url = (
+                    "/f/wlxt/kczy/zy/teacher/viewZy?wlkcid=%s&sfgq=0&zyid=%s"
+                    % (hw["wlkcid"], hw["zyid"])
+                )
+
+            # 获取作业详情页面HTML
+            detail_html = get_page(detail_url, session=session)
+            if detail_html:
+                # 解析作业详情
+                homework_info = parse_homework_detail(detail_html)
+
+                # 生成Markdown内容
+                markdown_content = build_homework_markdown(homework_info)
+
+                # 保存作业说明为Markdown文件
+                markdown_path = os.path.join(path, "作业说明.md")
+                with open(markdown_path, "w", encoding="utf-8") as f:
+                    f.write(markdown_content)
+
+                print(f"已保存作业说明: {hw['bt']}")
+        except Exception as e:
+            print(f"获取作业详情失败 {hw['bt']}: {e}")
+
         if c["_type"] == "student":
             append_hw_csv(os.path.join(path, "info_%s.csv" % c["wlkcid"]), hw)
             page = bs(
                 get_page(
                     "/f/wlxt/kczy/zy/student/viewCj?wlkcid=%s&zyid=%s&xszyid=%s"
-                    % (hw["wlkcid"], hw["zyid"], hw["xszyid"])
+                    % (hw["wlkcid"], hw["zyid"], hw["xszyid"]),
+                    session=session,
                 ),
                 "html.parser",
             )
@@ -482,6 +1027,7 @@ def sync_hw(c):
                         f.find_all("a")[-1].attrs["onclick"].split("ZyFile('")[-1][:-2],
                     ),
                     name=name,
+                    session=session,
                 )
                 os.chdir(now)
         else:
@@ -492,15 +1038,16 @@ def sync_hw(c):
                     {"name": "zyid", "value": hw["zyid"]},
                 ]
             }
-            stus = get_json("/b/wlxt/kczy/xszy/teacher/getDoneInfo", data)["object"][
-                "aaData"
-            ]
+            stus = get_json(
+                "/b/wlxt/kczy/xszy/teacher/getDoneInfo", data, session=session
+            )["object"]["aaData"]
             for stu in stus:
                 append_hw_csv(os.path.join(path, "info_%s.csv" % c["wlkcid"]), stu)
                 page = bs(
                     get_page(
                         "/f/wlxt/kczy/xszy/teacher/beforePiYue?wlkcid=%s&xszyid=%s"
-                        % (stu["wlkcid"], stu["xszyid"])
+                        % (stu["wlkcid"], stu["xszyid"]),
+                        session=session,
                     ),
                     "html.parser",
                 )
@@ -524,13 +1071,186 @@ def sync_hw(c):
                         "/b/wlxt/kczy/xszy/teacher/downloadFile/%s/%s"
                         % (stu["wlkcid"], id),
                         name=name,
+                        session=session,
                     )
                 os.chdir(now)
-            stus = get_json("/b/wlxt/kczy/xszy/teacher/getUndoInfo", data)["object"][
-                "aaData"
-            ]
+            stus = get_json(
+                "/b/wlxt/kczy/xszy/teacher/getUndoInfo", data, session=session
+            )["object"]["aaData"]
             for stu in stus:
                 append_hw_csv(os.path.join(path, "info_%s.csv" % c["wlkcid"]), stu)
+
+            """
+            get html from url like 
+            https://learn.tsinghua.edu.cn/f/wlxt/kczy/zy/student/viewZy?wlkcid=2025-2026-1150244476&sfgq=0&zyid=26ef84e7994c976201994fe0c4190109&xszyid=26ef84e8994c97b70199500923131cfb
+            """
+
+
+def parse_homework_detail(html_content):
+    """
+    解析作业详情页面的HTML，提取作业信息
+    """
+    soup = bs(html_content, "html.parser")
+
+    # 提取作业信息的各个字段
+    homework_info = {}
+
+    # 查找所有的list项
+    list_items = soup.find_all("div", class_="list")
+
+    for item in list_items:
+        left_div = item.find("div", class_="left")
+        right_div = item.find("div", class_="right")
+
+        if left_div and right_div:
+            key = left_div.get_text(strip=True)
+
+            # 根据不同的字段类型提取内容
+            if key == "作业标题":
+                homework_info["title"] = right_div.get_text(strip=True)
+            elif key == "作业说明":
+                # 提取作业说明的详细内容
+                content_div = right_div.find("div", class_="c55")
+                if content_div:
+                    # 保留段落结构
+                    paragraphs = content_div.find_all("p")
+                    if paragraphs:
+                        homework_info["description"] = "\n\n".join(
+                            [
+                                p.get_text(strip=True)
+                                for p in paragraphs
+                                if p.get_text(strip=True)
+                            ]
+                        )
+                    else:
+                        homework_info["description"] = content_div.get_text(strip=True)
+                else:
+                    homework_info["description"] = right_div.get_text(strip=True)
+            elif key == "答案说明":
+                content_div = right_div.find("div", class_="c55")
+                if content_div:
+                    paragraphs = content_div.find_all("p")
+                    if paragraphs:
+                        homework_info["answer_description"] = "\n\n".join(
+                            [
+                                p.get_text(strip=True)
+                                for p in paragraphs
+                                if p.get_text(strip=True)
+                            ]
+                        )
+                    else:
+                        homework_info["answer_description"] = content_div.get_text(
+                            strip=True
+                        )
+                else:
+                    homework_info["answer_description"] = right_div.get_text(strip=True)
+            elif key == "发布对象":
+                homework_info["target_audience"] = right_div.get_text(strip=True)
+            elif key == "完成方式":
+                homework_info["completion_method"] = right_div.get_text(strip=True)
+            elif key == "截止日期(GMT+8)":
+                homework_info["deadline"] = right_div.get_text(strip=True)
+            elif key == "补交截止时间":
+                homework_info["makeup_deadline"] = right_div.get_text(strip=True)
+
+    # 提取作业附件和答案附件
+    fujian_items = soup.find_all("div", class_="fujian")
+    for fujian in fujian_items:
+        left_div = fujian.find("div", class_="left")
+        right_div = fujian.find("div", class_="right")
+
+        if left_div and right_div:
+            key = left_div.get_text(strip=True)
+
+            # 查找附件链接
+            links = right_div.find_all("a")
+            if links:
+                attachment_list = []
+                for link in links:
+                    attachment_list.append(
+                        {
+                            "name": link.get_text(strip=True),
+                            "href": link.get("href", ""),
+                        }
+                    )
+
+                if key == "作业附件":
+                    homework_info["attachments"] = attachment_list
+                elif key == "答案附件":
+                    homework_info["answer_attachments"] = attachment_list
+            else:
+                if key == "作业附件":
+                    homework_info["attachments"] = []
+                elif key == "答案附件":
+                    homework_info["answer_attachments"] = []
+
+    return homework_info
+
+
+def build_homework_markdown(homework_info):
+    """
+    将作业信息构建为Markdown格式
+    """
+    markdown_content = []
+
+    # 作业标题
+    if homework_info.get("title"):
+        markdown_content.append(f"# {homework_info['title']}\n")
+
+    # 作业说明
+    if homework_info.get("description"):
+        markdown_content.append("## 作业说明\n")
+        markdown_content.append(f"{homework_info['description']}\n")
+
+    # 作业附件
+    if homework_info.get("attachments"):
+        markdown_content.append("## 作业附件\n")
+        for attachment in homework_info["attachments"]:
+            if attachment["name"]:
+                markdown_content.append(
+                    f"- [{attachment['name']}]({attachment['href']})\n"
+                )
+        markdown_content.append("")
+
+    # 答案说明
+    if (
+        homework_info.get("answer_description")
+        and homework_info["answer_description"].strip()
+    ):
+        markdown_content.append("## 答案说明\n")
+        markdown_content.append(f"{homework_info['answer_description']}\n")
+
+    # 答案附件
+    if homework_info.get("answer_attachments"):
+        markdown_content.append("## 答案附件\n")
+        for attachment in homework_info["answer_attachments"]:
+            if attachment["name"]:
+                markdown_content.append(
+                    f"- [{attachment['name']}]({attachment['href']})\n"
+                )
+        markdown_content.append("")
+
+    # 其他信息
+    markdown_content.append("## 作业信息\n")
+
+    if homework_info.get("target_audience"):
+        markdown_content.append(f"**发布对象**: {homework_info['target_audience']}\n")
+
+    if homework_info.get("completion_method"):
+        markdown_content.append(f"**完成方式**: {homework_info['completion_method']}\n")
+
+    if homework_info.get("deadline"):
+        markdown_content.append(f"**截止日期**: {homework_info['deadline']}\n")
+
+    if (
+        homework_info.get("makeup_deadline")
+        and homework_info["makeup_deadline"].strip()
+    ):
+        markdown_content.append(
+            f"**补交截止时间**: {homework_info['makeup_deadline']}\n"
+        )
+
+    return "\n".join(markdown_content)
 
 
 def build_discuss(s):
@@ -545,14 +1265,15 @@ def build_discuss(s):
     )
 
 
-def sync_discuss(c):
+def sync_discuss(session, c):
     global dist_path
     pre = os.path.join(dist_path, c["kcm"], "讨论")
     if not os.path.exists(pre):
         os.makedirs(pre)
     try:
         disc = get_json(
-            "/b/wlxt/bbs/bbs_tltb/%s/kctlList?wlkcid=%s" % (c["_type"], c["wlkcid"])
+            "/b/wlxt/bbs/bbs_tltb/%s/kctlList?wlkcid=%s" % (c["_type"], c["wlkcid"]),
+            session=session,
         )["object"]["resultsList"]
     except:
         return
@@ -563,7 +1284,8 @@ def sync_discuss(c):
         try:
             html = get_page(
                 "/f/wlxt/bbs/bbs_tltb/%s/viewTlById?wlkcid=%s&id=%s&tabbh=2&bqid=%s"
-                % (c["_type"], d["wlkcid"], d["id"], d["bqid"])
+                % (c["_type"], d["wlkcid"], d["id"], d["bqid"]),
+                session=session,
             )
             open(filename, "w").write(
                 build_discuss(d) + bs(html, "html.parser").find(class_="detail").text
@@ -649,29 +1371,32 @@ def clear(args):
 def process_course(c, args):
     # 处理单个课程的函数，用于多进程
     build_global(args)
-    if args.cookie:
-        cookie.load(args.cookie, ignore_discard=True, ignore_expires=True)
-        args.login = get_page("/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxg") != err404
-        print("login successfully" if args.login else "login failed!")
+    from browser_login import BrowserLoginManager
+
+    blm = BrowserLoginManager()
+    ok = blm.load_session_info("session.json", verify=False)
+
+    if ok:
+        session = blm.get_session()
     else:
-        login(args.username, args.password)
+        print("❌ 未能创建新会话")
+        return
 
     c["_type"] = {"0": "teacher", "3": "student"}[c["jslx"]]
     print("Sync " + c["xnxq"] + " " + c["kcm"])
 
     if not os.path.exists(os.path.join(dist_path, c["kcm"])):
         os.makedirs(os.path.join(dist_path, c["kcm"]))
-    sync_info(c)
-    sync_discuss(c)
-    sync_notify(c)
-    sync_file(c)
-    sync_hw(c)
+    sync_discuss(session, c)
+    sync_notify(session, c)
+    sync_file(session, c)
+    sync_hw(session, c)
 
     return c["kcm"]
 
 
-def main(args):
-    global dist_path
+async def main(args):
+    global dist_path, cookie
     build_global(args)
     assert (
         (dist_path is not None)
@@ -691,16 +1416,53 @@ def main(args):
         args.login = get_page("/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq") != err404
         print("login successfully" if args.login else "login failed!")
     else:
-        if os.path.exists(args._pass):
-            username, password = open(args._pass).read().split()
-        else:
-            if not args.username:
-                args.username = input("请输入INFO账号：")
-            if not args.password:
-                args.password = getpass.getpass("请输入INFO密码：")
-        args.login = login(args.username, args.password)
+        username = args.username if args.username else None
+
+        # 浏览器登录需要特殊处理，因为它需要访问全局cookie变量
+        from browser_login import BrowserLoginManager
+
+        try:
+            login_manager = BrowserLoginManager(username)
+
+            # 执行交互式登录
+            login_success = await login_manager.interactive_login()
+            # try:
+            #     loop = asyncio.get_running_loop()
+            #     import concurrent.futures
+
+            #     with concurrent.futures.ThreadPoolExecutor() as executor:
+            #         future = executor.submit(
+            #             asyncio.run, login_manager.interactive_login()
+            #         )
+            #         login_success = future.result()
+            # except RuntimeError:
+            #     print("RuntimeError")
+            #     login_success = asyncio.run(login_manager.interactive_login())
+
+            if (
+                login_success
+                and hasattr(login_manager, "session")
+                and login_manager.session
+            ):
+                print("✅ 浏览器登录成功！")
+                login_manager.save_session_info("session.json")
+                session = login_manager.get_session()
+                if session:
+                    print("✅ 浏览器会话有效！")
+                else:
+                    print("❌ 浏览器会话无效！")
+                args.login = True
+            else:
+                print("❌ 浏览器登录失败")
+                args.login = False
+
+        except Exception as e:
+            print(f"❌ 浏览器登录过程中出错: {e}")
+            args.login = False
+
     if args.login:
-        courses = get_courses(args)
+        courses = get_courses(session, args)
+
         if args.multi:
             # 如果未指定进程数，则使用CPU核数
             if not args.processes:
@@ -724,11 +1486,11 @@ def main(args):
                 print("Sync " + c["xnxq"] + " " + c["kcm"])
                 if not os.path.exists(os.path.join(dist_path, c["kcm"])):
                     os.makedirs(os.path.join(dist_path, c["kcm"]))
-                sync_info(c)
-                sync_discuss(c)
-                sync_notify(c)
-                sync_file(c)
-                sync_hw(c)
+                sync_info(session, c)
+                sync_discuss(session, c)
+                sync_notify(session, c)
+                sync_file(session, c)
+                sync_hw(session, c)
 
 
 def get_args():
@@ -751,9 +1513,14 @@ def get_args():
     parser.add_argument("--password", type=str, default="", help="password")
     parser.add_argument("--multi", action="store_true", help="multi-process")
     parser.add_argument("--processes", type=int, help="concurrent processes")
+    parser.add_argument(
+        "--reset-fingerprint",
+        action="store_true",
+        help="reset saved fingerprint data for fresh login",
+    )
     args = parser.parse_args()
     return args
 
 
 if __name__ == "__main__":
-    main(get_args())
+    asyncio.run(main(get_args()))
