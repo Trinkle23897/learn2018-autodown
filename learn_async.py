@@ -16,12 +16,6 @@ import ssl
 
 from gmssl import sm2
 
-from browser_login import (
-    generate_fingerprint,
-    save_fingerprint_data,
-    load_fingerprint_data,
-)
-
 ssl._create_default_https_context = ssl._create_unverified_context
 global dist_path, url, user_agent, headers, cookie, opener, err404, fingerprint_data
 dist_path = url = user_agent = headers = cookie = opener = err404 = fingerprint_data = (
@@ -34,9 +28,6 @@ def build_url(uri):
 
 
 def encrypt_password_sm2(password, public_key):
-    """
-    使用SM2加密密码
-    """
     try:
         # 清华SSO使用的公钥格式处理：统一为十六进制字符串，gmssl 期望 hex 字符串
         if isinstance(public_key, (bytes, bytearray)):
@@ -76,9 +67,6 @@ def encrypt_password_sm2(password, public_key):
 
 
 def extract_public_key_from_page(login_page_html):
-    """
-    从登录页面提取SM2公钥
-    """
     soup = bs(login_page_html, "html.parser")
 
     # 查找包含公钥的元素
@@ -164,7 +152,6 @@ from requests import Session
 
 
 def get_page(uri, values={}, session=None):
-    """获取页面内容，支持session和传统opener两种方式"""
     if session:
         # 使用新的session方式
         try:
@@ -205,7 +192,6 @@ def get_page(uri, values={}, session=None):
 
 
 def get_json(uri, values={}, session: Session = None):
-    """获取JSON数据，支持session和传统opener两种方式"""
     if session:
         # 使用新的session方式
         try:
@@ -269,9 +255,6 @@ def escape(s):
 
 
 def parse_login_form(login_page_html):
-    """
-    解析登录页面，提取表单中的隐藏字段和必要参数
-    """
     soup = bs(login_page_html, "html.parser")
     form_data = {}
 
@@ -293,315 +276,6 @@ def parse_login_form(login_page_html):
             print(f"找到表单字段: {name} = {value}")
 
     return form_data
-
-
-def login(username, password):
-    """
-    新的SSO双因素认证登录流程
-    """
-    global fingerprint_data
-
-    # 尝试加载已保存的指纹数据
-    fingerprint_data = load_fingerprint_data(username)
-    if not fingerprint_data:
-        # 生成新的指纹数据
-        fingerprint = generate_fingerprint()
-        fingerprint_data = save_fingerprint_data(username, fingerprint)
-        print(f"生成新的设备指纹: {fingerprint}")
-    else:
-        print("使用已保存的设备指纹")
-
-    # 第一步：访问SSO登录页面
-    sso_login_url = "https://id.tsinghua.edu.cn/do/off/ui/auth/login/form/bb5df85216504820be7bba2b0ae1535b/0"
-
-    try:
-        # 清理cookies
-        cookie.clear()
-
-        # 获取登录页面
-        login_page = get_page(sso_login_url)
-        if not login_page:
-            print("无法访问SSO登录页面")
-            return False
-
-        print("成功获取SSO登录页面，正在解析表单...")
-
-        # 解析登录表单，获取隐藏字段
-        form_data = parse_login_form(login_page)
-        if not form_data:
-            print("无法解析登录表单")
-            return False
-
-        # 提取公钥并加密密码
-        public_key = extract_public_key_from_page(login_page)
-        encrypted_password = encrypt_password_sm2(password, public_key)
-
-        # 第二步：提交登录信息 - 使用正确的action URL
-        login_post_url = "https://id.tsinghua.edu.cn/do/off/ui/auth/login/check"
-
-        # 更新表单数据，包含用户输入和指纹信息
-        form_data.update(
-            {
-                "i_user": username,
-                "i_pass": encrypted_password,  # 使用加密后的密码
-                "fingerPrint": fingerprint_data["fingerPrint"],
-                "singleLogin": "on",  # 单点登录，使用 "on" 而不是 "1"
-            }
-        )
-
-        # 清空验证码字段（如果存在）
-        if "i_captcha" in form_data:
-            form_data["i_captcha"] = ""
-
-        # 移除可能干扰的字段
-        form_data.pop("atOnce", None)
-
-        # 如果有额外的指纹数据，也包含进去
-        if fingerprint_data.get("fingerGenPrint"):
-            form_data["fingerGenPrint"] = fingerprint_data["fingerGenPrint"]
-        if fingerprint_data.get("fingerGenPrint3"):
-            form_data["fingerGenPrint3"] = fingerprint_data["fingerGenPrint3"]
-
-        print(
-            f"正在使用指纹 {fingerprint_data['fingerPrint'][:8]}... 登录用户 {username}"
-        )
-        print(f"提交表单数据: {list(form_data.keys())}")
-
-        # 添加登录请求特定的头部
-        original_headers = headers.copy()
-        headers.update(
-            {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Origin": "https://id.tsinghua.edu.cn",
-                "Referer": sso_login_url,
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "same-origin",
-                "Sec-Fetch-User": "?1",
-            }
-        )
-
-        # 提交登录请求
-        login_response = get_page(login_post_url, form_data)
-
-        # 恢复原始头部
-        headers.clear()
-        headers.update(original_headers)
-
-        if not login_response:
-            print("登录请求失败")
-            return False
-
-        print(f"登录响应长度: {len(login_response)}")
-
-        # 保存登录响应用于调试
-        with open("login_response_debug.html", "w", encoding="utf-8") as f:
-            f.write(login_response)
-        print("登录响应已保存到 login_response_debug.html")
-
-        # 检查登录结果 - 更详细的检查
-        if "SUCCESS" in login_response:
-            print(f"用户 {username} 登录成功")
-            return handle_login_success(username, login_response)
-
-        elif "doubleAuth" in login_response or "saveFinger" in login_response:
-            print("检测到双因素认证要求")
-            return handle_two_factor_auth(username, password, login_response)
-
-        elif "location.href" in login_response or "window.location" in login_response:
-            print("检测到JavaScript重定向，可能是双因素认证")
-            return handle_login_redirect(username, password, login_response)
-
-        elif "验证码" in login_response or "captcha" in login_response.lower():
-            print("需要验证码，当前版本不支持")
-            return False
-
-        elif (
-            "用户名或密码错误" in login_response
-            or "用户名或密码不正确" in login_response
-        ):
-            print("用户名或密码错误")
-            return False
-
-        else:
-            print(f"用户 {username} 登录失败，未知原因")
-            print("响应内容片段:", login_response[:500])
-
-            # 保存完整响应以供调试
-            with open("login_response.html", "w", encoding="utf-8") as f:
-                f.write(login_response)
-            print("完整登录响应已保存到 login_response.html")
-
-            # 如果登录失败，删除可能无效的指纹数据
-            fingerprint_file = f".fingerprint_{username}.json"
-            if os.path.exists(fingerprint_file):
-                os.remove(fingerprint_file)
-                print("删除无效的指纹数据，下次登录将重新生成")
-            return False
-
-    except Exception as e:
-        print(f"登录过程中发生错误: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-def handle_login_success(session, username, login_response):
-    """
-    处理登录成功后的重定向
-    """
-    try:
-        # 解析重定向URL
-        if 'replace("' in login_response:
-            redirect_url = login_response.split('replace("')[1].split('")')[0]
-            print(f"处理重定向: {redirect_url}")
-
-            # 访问重定向页面
-            redirect_page = session.get(redirect_url)
-
-            # 如果有进一步的重定向，继续处理
-            if redirect_page and 'location="' in redirect_page:
-                final_url = redirect_page.split('location="')[1].split('"')[0]
-                print(f"最终重定向: {final_url}")
-                session.get(final_url)
-
-        # 尝试访问网络学堂主页验证登录状态
-        test_url = "/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq"
-        test_result = session.get(test_url)
-
-        if test_result and len(test_result) > 0:
-            print("登录验证成功，可以访问网络学堂")
-            return True
-        else:
-            print("登录后无法访问网络学堂，可能需要重新认证")
-            # 删除可能过期的指纹数据
-            fingerprint_file = f".fingerprint_{username}.json"
-            if os.path.exists(fingerprint_file):
-                os.remove(fingerprint_file)
-            return False
-
-    except Exception as e:
-        print(f"处理登录重定向时出错: {e}")
-        return False
-
-
-def handle_login_redirect(username, password, login_response):
-    """
-    处理登录过程中的JavaScript重定向（通常是双因素认证）
-    """
-    print("处理登录重定向...")
-
-    try:
-        # 尝试提取重定向URL
-        redirect_patterns = [
-            r'location\.href\s*=\s*[\'"]([^\'"]+)[\'"]',
-            r'window\.location\s*=\s*[\'"]([^\'"]+)[\'"]',
-            r'location\.replace\([\'"]([^\'"]+)[\'"]\)',
-        ]
-
-        redirect_url = None
-        for pattern in redirect_patterns:
-            match = re.search(pattern, login_response)
-            if match:
-                redirect_url = match.group(1)
-                break
-
-        if redirect_url:
-            print(f"找到重定向URL: {redirect_url}")
-
-            # 访问重定向页面
-            redirect_page = get_page(redirect_url)
-
-            if redirect_page:
-                # 检查是否是双因素认证页面
-                if "doubleAuth" in redirect_page or "saveFinger" in redirect_page:
-                    return handle_two_factor_auth(username, password, redirect_page)
-                elif "SUCCESS" in redirect_page:
-                    return handle_login_success(username, redirect_page)
-                else:
-                    print("重定向页面内容未知")
-                    print("页面内容片段:", redirect_page[:500])
-        else:
-            print("无法提取重定向URL")
-            print("响应内容:", login_response[:1000])
-
-        return False
-
-    except Exception as e:
-        print(f"处理重定向时出错: {e}")
-        return False
-
-
-def handle_two_factor_auth(username, password, response):
-    """
-    处理双因素认证
-    """
-    print("正在处理双因素认证...")
-
-    try:
-        # 检查是否需要保存设备指纹
-        if "saveFinger" in response:
-            print("需要保存设备指纹信息")
-
-            # 构建设备指纹保存请求
-            save_finger_url = (
-                "https://id.tsinghua.edu.cn/b/doubleAuth/personal/saveFinger"
-            )
-
-            device_name = f"Python-Script-{platform.system()}"
-            finger_data = {
-                "fingerprint": fingerprint_data["fingerPrint"],
-                "deviceName": device_name,
-                "radioVal": "是",  # 信任此设备
-            }
-
-            # 发送保存指纹请求
-            save_response = get_page(save_finger_url, finger_data)
-
-            if save_response and '"success":true' in save_response:
-                print("设备指纹保存成功")
-
-                # 解析返回的指纹数据
-                try:
-                    response_data = json.loads(save_response)
-                    if "data" in response_data:
-                        # 更新指纹数据
-                        fingerprint_data.update(
-                            {
-                                "fingerGenPrint": response_data["data"].get(
-                                    "fingerGenPrint", ""
-                                ),
-                                "fingerGenPrint3": response_data["data"].get(
-                                    "fingerGenPrint3", ""
-                                ),
-                                "timestamp": time.time(),
-                            }
-                        )
-                        save_fingerprint_data(
-                            username,
-                            fingerprint_data["fingerPrint"],
-                            fingerprint_data["fingerGenPrint"],
-                            fingerprint_data["fingerGenPrint3"],
-                        )
-                        print("指纹数据已更新并保存")
-
-                        # 重新尝试登录
-                        return login(username, password)
-
-                except json.JSONDecodeError:
-                    pass
-            else:
-                print("设备指纹保存失败")
-
-        # 如果需要手动验证，提示用户
-        print("此账户需要手动完成双因素认证")
-        print("请在浏览器中完成认证后，将生成的指纹信息手动添加到指纹文件中")
-        return False
-
-    except Exception as e:
-        print(f"处理双因素认证时出错: {e}")
-        return False
 
 
 def get_courses(session, args):
@@ -685,7 +359,6 @@ class TqdmUpTo(tqdm):
 
 
 def download(uri, name, target_dir=None, session=None):
-    """下载文件，支持session和传统urllib两种方式"""
     filename = escape(name)
 
     # 使用绝对路径
@@ -1087,9 +760,6 @@ def sync_hw(session, c):
 
 
 def parse_homework_detail(html_content):
-    """
-    解析作业详情页面的HTML，提取作业信息
-    """
     soup = bs(html_content, "html.parser")
 
     # 提取作业信息的各个字段
@@ -1188,9 +858,6 @@ def parse_homework_detail(html_content):
 
 
 def build_homework_markdown(homework_info):
-    """
-    将作业信息构建为Markdown格式
-    """
     markdown_content = []
 
     # 作业标题
@@ -1418,7 +1085,6 @@ async def main(args):
     else:
         username = args.username if args.username else None
 
-        # 浏览器登录需要特殊处理，因为它需要访问全局cookie变量
         from browser_login import BrowserLoginManager
 
         try:
@@ -1426,18 +1092,6 @@ async def main(args):
 
             # 执行交互式登录
             login_success = await login_manager.interactive_login()
-            # try:
-            #     loop = asyncio.get_running_loop()
-            #     import concurrent.futures
-
-            #     with concurrent.futures.ThreadPoolExecutor() as executor:
-            #         future = executor.submit(
-            #             asyncio.run, login_manager.interactive_login()
-            #         )
-            #         login_success = future.result()
-            # except RuntimeError:
-            #     print("RuntimeError")
-            #     login_success = asyncio.run(login_manager.interactive_login())
 
             if (
                 login_success
