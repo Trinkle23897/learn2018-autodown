@@ -1,2 +1,0 @@
-# Netscape HTTP Cookie File
-learn.tsinghua.edu.cn	FALSE	/	FALSE		JSESSIONID	B1274E298A712E84F1346C2753AA4BC0.wlxt20181

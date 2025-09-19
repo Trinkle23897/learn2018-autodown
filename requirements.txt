@@ -1,3 +1,5 @@
 bs4
 tqdm
 requests
+gmssl
+selenium
