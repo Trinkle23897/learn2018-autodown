@@ -1,33 +1,26 @@
 #!/usr/bin/env python3
-"""
-基于浏览器的交互式登录工具
-使用 Selenium 自动化浏览器，让用户手动完成登录，然后提取认证信息
-"""
-
 import os
-import sys
 import json
 import time
-import asyncio
-import argparse
 import uuid
-from pathlib import Path
 import requests
-from urllib.parse import urljoin, urlparse
 
-try:
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.webdriver.chrome.options import Options as ChromeOptions
-    from selenium.webdriver.firefox.options import Options as FirefoxOptions
-    from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.common.exceptions import TimeoutException, WebDriverException
 
-    SELENIUM_AVAILABLE = True
-except ImportError:
-    SELENIUM_AVAILABLE = False
-    print("⚠️ Selenium 未安装，请运行: pip install selenium")
+from data import (
+    sso_login_url,
+    wlxt_url,
+    learn_base_url,
+    success_indicators,
+    default_headers,
+    test_urls,
+)
 
 
 def generate_fingerprint():
@@ -68,9 +61,6 @@ def load_fingerprint_data(username):
 
 BROWSER_LOGIN_AVAILABLE = True
 
-# 初始化全局变量（如果不存在）
-import http.cookiejar
-
 cookie = None
 
 # 声明全局变量
@@ -89,23 +79,10 @@ class BrowserLoginManager:
         self.cookies = {}
         self.fingerprint_data = None
 
-        # 清华SSO相关URL
-        self.sso_login_url = "https://id.tsinghua.edu.cn/do/off/ui/auth/login/form/bb5df85216504820be7bba2b0ae1535b/0"
-        self.wlxt_url = "https://learn.tsinghua.edu.cn/f/wlxt/index/course/student/"
-        self.learn_base_url = "https://learn.tsinghua.edu.cn"
-        self.success_indicators = [
-            "learn.tsinghua.edu.cn",
-            "myCourse",
-            "semesterCourseList",
-            "退出登录",
-            "注销",
-        ]
-
-    def setup_driver(self):
-        """设置浏览器驱动"""
-        if not SELENIUM_AVAILABLE:
-            print("❌ Selenium 不可用")
-            return False
+        self.sso_login_url = sso_login_url
+        self.wlxt_url = wlxt_url
+        self.learn_base_url = learn_base_url
+        self.success_indicators = success_indicators
 
         try:
             if self.browser == "chrome":
@@ -115,6 +92,7 @@ class BrowserLoginManager:
                 options.add_argument("--no-sandbox")
                 options.add_argument("--disable-dev-shm-usage")
                 options.add_argument("--disable-gpu")
+                # Note: if errors occur due to imcompatible os (like windows), you can change the following user-agent to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                 options.add_argument(
                     "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                 )
@@ -129,20 +107,17 @@ class BrowserLoginManager:
                 self.driver = webdriver.Firefox(options=options)
 
             else:
-                print(f"❌ 不支持的浏览器: {self.browser}")
-                return False
+                raise ValueError(f"不支持的浏览器: {self.browser}")
 
             # 设置页面加载超时
             self.driver.set_page_load_timeout(30)
             self.driver.implicitly_wait(10)
 
             print(f"✅ {self.browser.title()} 浏览器已启动")
-            return True
+            # return True
 
         except WebDriverException as e:
-            print(f"❌ 启动浏览器失败: {e}")
-            print("💡 请确保已安装对应的浏览器驱动程序")
-            return False
+            raise ValueError(f"启动浏览器失败: {e}")
 
     def load_or_generate_fingerprint(self):
         """加载或生成设备指纹"""
@@ -274,17 +249,7 @@ class BrowserLoginManager:
                 if cookie["name"] == "XSRF-TOKEN":
                     xsrf_token = cookie["value"]
 
-            # 设置常用headers
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
-                "Referer": "https://learn.tsinghua.edu.cn/",
-            }
-
+            headers = default_headers
             # 如果有XSRF-TOKEN，添加到请求头
             if xsrf_token:
                 headers["X-XSRF-TOKEN"] = xsrf_token
@@ -302,12 +267,6 @@ class BrowserLoginManager:
     def verify_session(self):
         """验证会话是否有效"""
         # 尝试多个不同的API端点
-        test_urls = [
-            "https://learn.tsinghua.edu.cn/f/wlxt/index/course/student/",
-            "https://learn.tsinghua.edu.cn/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester",
-            "https://learn.tsinghua.edu.cn/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq",
-        ]
-
         success_count = 0
 
         for i, test_url in enumerate(test_urls, 1):
@@ -364,13 +323,7 @@ class BrowserLoginManager:
                 print(f"❌ 测试API端点 {i} 时出错: {e}")
                 print()
 
-        # 只要有至少一个端点成功，就认为登录有效
-        # if success_count > 0:
-        #     print(f"✅ 会话验证成功！({success_count}/{len(test_urls)} 个端点正常)")
         return True
-        # else:
-        #     print("❌ 所有API端点验证失败")
-        #     return False
 
     async def interactive_login(self, verify=False):
         """执行交互式登录"""
@@ -379,10 +332,6 @@ class BrowserLoginManager:
         # 加载或生成指纹
         if not self.load_or_generate_fingerprint():
             print("❌ 指纹处理失败")
-            return False
-
-        # 设置浏览器
-        if not self.setup_driver():
             return False
 
         try:
@@ -425,16 +374,6 @@ class BrowserLoginManager:
         except Exception as e:
             print(f"❌ 登录过程中出错: {e}")
             return False
-
-        finally:
-            # 清理浏览器
-            if self.driver:
-                # try:
-                #     print("🧹 正在关闭浏览器...")
-                #     self.driver.quit()
-                # except Exception:
-                #     pass
-                print("成功")
 
     def get_session(self):
         """获取登录会话"""
@@ -484,15 +423,7 @@ class BrowserLoginManager:
                 "xsrf-token"
             )
 
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
-                "Referer": "https://learn.tsinghua.edu.cn/",
-            }
+            headers = default_headers
 
             if xsrf_token:
                 headers["X-XSRF-TOKEN"] = xsrf_token
@@ -547,7 +478,6 @@ class BrowserLoginManager:
                 self.session = None
 
     def __del__(self):
-        # 析构兜底，防止资源泄漏
         try:
             self.close()
         except Exception:
